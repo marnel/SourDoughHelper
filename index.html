@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <!-- Updated at runtime to the active palette's background. -->
+    <meta name="theme-color" content="#f6f7f9" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Sourdough" />
+    <meta
+      name="description"
+      content="Starter feeding ratios, bake schedules and timers for sourdough bread."
+    />
+    <title>Sourdough Helper</title>
+    <script>
+      /*
+       * Set the theme before first paint. Without this, the app renders in the
+       * default palette for a frame and then snaps to the saved one, which
+       * reads as a flash — worst on a dark theme, where the flash is white.
+       * Deliberately duplicates a little logic from src/lib/prefs.ts, because
+       * this has to run before any module loads.
+       */
+      try {
+        var saved = JSON.parse(localStorage.getItem('sdhelper:v1:prefs') || '{}')
+        var palettes = ['slate', 'crust', 'sage']
+        document.documentElement.dataset.palette =
+          palettes.indexOf(saved.palette) >= 0 ? saved.palette : 'slate'
+        if (saved.mode === 'light' || saved.mode === 'dark') {
+          document.documentElement.dataset.theme = saved.mode
+        }
+      } catch (e) {
+        document.documentElement.dataset.palette = 'slate'
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

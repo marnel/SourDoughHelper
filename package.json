@@ -1,0 +1,27 @@
+{
+  "name": "sdhelper",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Sourdough Helper — starter feeding ratios, bake schedules, and timers as an installable PWA",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false --noEmit",
+    "icons": "node scripts/gen-icons.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9",
+    "vite-plugin-pwa": "^1.0.3"
+  }
+}
