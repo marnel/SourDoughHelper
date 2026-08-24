@@ -24,7 +24,7 @@ const DEFAULT_STATE: RecipeState = { ...DEFAULT_RECIPE, loaves: 1 }
 
 export function MethodPage() {
   const [r, setR] = usePersisted<RecipeState>(KEYS.recipe, DEFAULT_STATE)
-  const { tempUnit, ratioId } = usePrefs()
+  const { tempUnit, ratioId, tempC } = usePrefs()
   // Read-only: the method text and its durations come from the saved plan, so
   // this page always agrees with the Plan tab.
   const [plan] = usePersisted<PlanInput>(KEYS.plan, DEFAULT_PLAN)
@@ -38,8 +38,8 @@ export function MethodPage() {
 
   // Durations only — anchored anywhere, since this page shows lengths not clocks.
   const steps = useMemo(
-    () => buildSchedule(plan, ratioId, 'feed-starter', new Date()).steps,
-    [plan, ratioId],
+    () => buildSchedule(plan, ratioId, tempC, 'feed-starter', new Date()).steps,
+    [plan, ratioId, tempC],
   )
 
   return (

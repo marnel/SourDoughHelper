@@ -18,14 +18,12 @@ import {
   fermentFactor,
   formatTemp,
   formatTempDelta,
-  tempAdvice,
 } from '../lib/temperature'
 
 interface StarterState {
   mode: 'from-starter' | 'to-total'
   starterGrams: number
   totalGrams: number
-  tempC: number
   lastFedAt: number | null
 }
 
@@ -33,19 +31,17 @@ const DEFAULT_STARTER: StarterState = {
   mode: 'from-starter',
   starterGrams: 20,
   totalGrams: 200,
-  tempC: 24,
   lastFedAt: null,
 }
 
 export function StarterPage() {
   const [s, setS] = usePersisted<StarterState>(KEYS.starter, DEFAULT_STARTER)
-  const { tempUnit, ratioId } = usePrefs()
+  const { tempUnit, ratioId, tempC } = usePrefs()
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const ratio = getRatio(ratioId)
-  const factor = fermentFactor(s.tempC)
+  const factor = fermentFactor(tempC)
   const peakMinutes = Math.round(ratio.peakHoursAt24C * 60 * factor)
-  const advice = tempAdvice(s.tempC)
 
   const feed = useMemo(
     () =>
@@ -171,19 +167,12 @@ export function StarterPage() {
         title="Temperature"
         subtitle="The single biggest lever on how long anything takes."
       >
-        <TempSlider
-          label="Where the jar sits"
-          tempC={s.tempC}
-          onChange={(tempC) => patch({ tempC })}
-        />
-        <p className="advice">
-          <strong>{advice.label}.</strong> {advice.note}
-        </p>
+        <TempSlider />
         <p className="hint">
           Timings assume {formatTemp(REFERENCE_C, tempUnit)} and are scaled from
           there — activity roughly doubles for every{' '}
           {formatTempDelta(10, tempUnit)} warmer. At{' '}
-          {formatTemp(s.tempC, tempUnit)} that works out to{' '}
+          {formatTemp(tempC, tempUnit)} that works out to{' '}
           <strong>
             {factor === 1
               ? 'no change'
@@ -231,7 +220,7 @@ export function StarterPage() {
                     <p>{r.watchOut}</p>
                     <p className="hint">
                       Resulting starter hydration: {r.hydrationPct}%. At{' '}
-                      {formatTemp(s.tempC, tempUnit)} expect a peak in about{' '}
+                      {formatTemp(tempC, tempUnit)} expect a peak in about{' '}
                       {fmtDuration(r.peakHoursAt24C * 60 * factor)}.
                     </p>
                     <button

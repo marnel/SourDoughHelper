@@ -9,7 +9,7 @@
 
 import { DEFAULT_RATIO_ID, RATIOS } from './ratios'
 import { KEYS, load, save } from './storage'
-import type { TempUnit } from './temperature'
+import { REFERENCE_C, type TempUnit } from './temperature'
 import {
   DEFAULT_MODE,
   DEFAULT_PALETTE,
@@ -34,6 +34,15 @@ export interface Prefs {
    * and quietly scheduling the bake eight hours too late.
    */
   ratioId: string
+  /**
+   * Kitchen temperature in °C, shared by the whole app.
+   *
+   * Same reasoning as ratioId: this was stored twice — once for the starter
+   * jar, once for the dough — so the Starter tab could say a 1:2:2 levain
+   * peaks in 4h 5m while the planner scheduled a 5h 30m build for the same
+   * levain. One number, even if imperfect, beats two that contradict.
+   */
+  tempC: number
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -42,6 +51,7 @@ export const DEFAULT_PREFS: Prefs = {
   // Fahrenheit by default; the unit toggle is in Settings.
   tempUnit: 'F',
   ratioId: DEFAULT_RATIO_ID,
+  tempC: REFERENCE_C,
 }
 
 function sanitise(p: Prefs): Prefs {
@@ -52,12 +62,19 @@ function sanitise(p: Prefs): Prefs {
     ratioId: RATIOS.some((r) => r.id === p.ratioId)
       ? p.ratioId
       : DEFAULT_PREFS.ratioId,
+    // Clamp to the slider's range so a corrupt value cannot produce a
+    // nonsense schedule.
+    tempC:
+      Number.isFinite(p.tempC) && p.tempC >= 10 && p.tempC <= 40
+        ? p.tempC
+        : DEFAULT_PREFS.tempC,
   }
 }
 
 /**
- * Read prefs, carrying a ratio chosen under the old per-page storage over to
- * the shared one so the fix does not silently reset someone's selection.
+ * Read prefs, carrying a ratio and temperature chosen under the old per-page
+ * storage over to the shared ones, so the fix does not silently reset
+ * someone's selections.
  *
  * Deliberately loads with an empty fallback rather than DEFAULT_PREFS: `load`
  * merges the fallback over the stored object, so against DEFAULT_PREFS a
@@ -67,9 +84,21 @@ function sanitise(p: Prefs): Prefs {
 function loadPrefs(): Prefs {
   const stored = load<Partial<Prefs>>(KEYS.prefs, {})
   const merged = { ...DEFAULT_PREFS, ...stored }
-  if (stored.ratioId === undefined) {
-    const legacy = load<{ ratioId?: string }>(KEYS.starter, {})
-    if (legacy.ratioId) merged.ratioId = legacy.ratioId
+  if (stored.ratioId === undefined || stored.tempC === undefined) {
+    const legacyStarter = load<{ ratioId?: string; tempC?: number }>(
+      KEYS.starter,
+      {},
+    )
+    if (stored.ratioId === undefined && legacyStarter.ratioId) {
+      merged.ratioId = legacyStarter.ratioId
+    }
+    if (stored.tempC === undefined) {
+      // Prefer the plan's value: it drove bulk, bench and the final proof,
+      // so it is the one that shaped the actual bake.
+      const legacyPlan = load<{ doughTempC?: number }>(KEYS.plan, {})
+      const inherited = legacyPlan.doughTempC ?? legacyStarter.tempC
+      if (inherited !== undefined) merged.tempC = inherited
+    }
   }
   return sanitise(merged)
 }

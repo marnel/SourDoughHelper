@@ -1,41 +1,52 @@
 import type { ReactNode } from 'react'
 import { Slider } from './Controls'
 import { usePrefs } from '../hooks'
-import { cToF, fToC, formatTemp } from '../lib/temperature'
+import { setPrefs } from '../lib/prefs'
+import { cToF, fToC, formatTemp, tempAdvice } from '../lib/temperature'
 
 /**
- * A temperature slider that stores Celsius but shows whichever unit the baker
- * picked. Kept in one place because it was previously duplicated on the Starter
- * and Plan pages, each with its own copy of the conversion and its own idea of
- * the current unit.
+ * The kitchen temperature slider.
  *
- * The stored value stays Celsius no matter what is displayed — converting for
- * display only means the fermentation maths never has to care about units.
+ * Reads and writes the single shared value directly, so it can be dropped on
+ * any page and every instance stays in step. Both the value and the unit were
+ * previously duplicated per page, which let the Starter tab and the planner
+ * quote different times for the same levain.
+ *
+ * The stored value is always Celsius; converting only for display keeps the
+ * fermentation maths free of units.
  */
 export function TempSlider({
-  label,
-  tempC,
-  onChange,
+  label = 'Kitchen temperature',
   hint,
+  showAdvice = true,
 }: {
-  label: string
-  tempC: number
-  onChange: (tempC: number) => void
+  label?: string
   hint?: ReactNode
+  /** The plain-language read on what this temperature will do. */
+  showAdvice?: boolean
 }) {
-  const { tempUnit } = usePrefs()
+  const { tempC, tempUnit } = usePrefs()
   const isC = tempUnit === 'C'
+  const advice = tempAdvice(tempC)
 
   return (
-    <Slider
-      label={label}
-      value={isC ? Math.round(tempC) : Math.round(cToF(tempC))}
-      min={isC ? 14 : 57}
-      max={isC ? 34 : 93}
-      step={1}
-      display={formatTemp(tempC, tempUnit)}
-      onChange={(v) => onChange(isC ? v : fToC(v))}
-      hint={hint}
-    />
+    <>
+      <Slider
+        label={label}
+        value={isC ? Math.round(tempC) : Math.round(cToF(tempC))}
+        min={isC ? 14 : 57}
+        max={isC ? 34 : 93}
+        step={1}
+        display={formatTemp(tempC, tempUnit)}
+        onChange={(v) => setPrefs({ tempC: isC ? v : fToC(v) })}
+        hint={hint}
+      />
+      {/* Owned here so every page presents the reading identically. */}
+      {showAdvice ? (
+        <p className="advice">
+          <strong>{advice.label}.</strong> {advice.note}
+        </p>
+      ) : null}
+    </>
   )
 }

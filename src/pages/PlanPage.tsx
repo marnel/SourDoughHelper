@@ -25,7 +25,7 @@ import {
 } from '../lib/schedule'
 import { setPrefs } from '../lib/prefs'
 import { replaceAll, type NewTimer } from '../lib/timers'
-import { REFERENCE_C, formatTemp, tempAdvice } from '../lib/temperature'
+import { REFERENCE_C, formatTemp } from '../lib/temperature'
 
 interface AnchorState {
   kind: AnchorKind
@@ -64,7 +64,7 @@ function needsTimer(step: ScheduledStep): boolean {
 
 export function PlanPage() {
   const now = useNow(30_000)
-  const { tempUnit, ratioId } = usePrefs()
+  const { tempUnit, ratioId, tempC } = usePrefs()
   const [plan, setPlan] = usePersisted<PlanInput>(KEYS.plan, DEFAULT_PLAN)
   const [anchor, setAnchor] = usePersisted<AnchorState>(
     KEYS.anchor,
@@ -73,12 +73,11 @@ export function PlanPage() {
   const [armed, setArmed] = useState(false)
 
   const schedule = useMemo(
-    () => buildSchedule(plan, ratioId, anchor.kind, new Date(anchor.at)),
-    [plan, ratioId, anchor.kind, anchor.at],
+    () => buildSchedule(plan, ratioId, tempC, anchor.kind, new Date(anchor.at)),
+    [plan, ratioId, tempC, anchor.kind, anchor.at],
   )
 
   const active = currentStep(schedule, now)
-  const advice = tempAdvice(plan.doughTempC)
   const patchPlan = (p: Partial<PlanInput>) =>
     setPlan((prev) => ({ ...prev, ...p }))
 
@@ -286,16 +285,7 @@ export function PlanPage() {
         title="Adjust the plan"
         subtitle={`Defaults are a 75% country loaf in a ${formatTemp(REFERENCE_C, tempUnit)} kitchen.`}
       >
-        <TempSlider
-          label="Kitchen temperature"
-          tempC={plan.doughTempC}
-          onChange={(doughTempC) => patchPlan({ doughTempC })}
-          hint={
-            <>
-              <strong>{advice.label}.</strong> {advice.note}
-            </>
-          }
-        />
+        <TempSlider />
 
         <Segmented
           label="Levain"
