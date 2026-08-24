@@ -12,6 +12,7 @@ import {
   perLoaf,
   type RecipeInput,
 } from '../lib/recipe'
+import { setPrefs } from '../lib/prefs'
 import { KEYS } from '../lib/storage'
 import { DEFAULT_PLAN, buildSchedule, type PlanInput } from '../lib/schedule'
 
@@ -23,19 +24,22 @@ const DEFAULT_STATE: RecipeState = { ...DEFAULT_RECIPE, loaves: 1 }
 
 export function MethodPage() {
   const [r, setR] = usePersisted<RecipeState>(KEYS.recipe, DEFAULT_STATE)
-  const { tempUnit } = usePrefs()
+  const { tempUnit, ratioId } = usePrefs()
   // Read-only: the method text and its durations come from the saved plan, so
   // this page always agrees with the Plan tab.
   const [plan] = usePersisted<PlanInput>(KEYS.plan, DEFAULT_PLAN)
 
-  const recipe = useMemo(() => computeRecipe(r, tempUnit), [r, tempUnit])
-  const ratio = getRatio(r.ratioId)
+  const recipe = useMemo(
+    () => computeRecipe(r, ratioId, tempUnit),
+    [r, ratioId, tempUnit],
+  )
+  const ratio = getRatio(ratioId)
   const patch = (p: Partial<RecipeState>) => setR((prev) => ({ ...prev, ...p }))
 
   // Durations only — anchored anywhere, since this page shows lengths not clocks.
   const steps = useMemo(
-    () => buildSchedule(plan, 'feed-starter', new Date()).steps,
-    [plan],
+    () => buildSchedule(plan, ratioId, 'feed-starter', new Date()).steps,
+    [plan, ratioId],
   )
 
   return (
@@ -106,9 +110,9 @@ export function MethodPage() {
               <button
                 key={x.id}
                 type="button"
-                className={x.id === r.ratioId ? 'chip on' : 'chip'}
-                aria-pressed={x.id === r.ratioId}
-                onClick={() => patch({ ratioId: x.id })}
+                className={x.id === ratioId ? 'chip on' : 'chip'}
+                aria-pressed={x.id === ratioId}
+                onClick={() => setPrefs({ ratioId: x.id })}
               >
                 <span className="chip-label">{x.label}</span>
                 <span className="chip-sub">{x.hydrationPct}% hyd</span>

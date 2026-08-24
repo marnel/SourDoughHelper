@@ -25,8 +25,6 @@ export interface RecipeInput {
   saltPct: number
   /** Levain as a percentage of total flour. */
   levainPct: number
-  /** Which starter ratio the levain was built at — sets its hydration. */
-  ratioId: string
 }
 
 export interface RecipeLine {
@@ -51,14 +49,15 @@ export const DEFAULT_RECIPE: RecipeInput = {
   hydrationPct: 75,
   saltPct: 2,
   levainPct: 20,
-  ratioId: '1-2-2',
 }
 
 export function computeRecipe(
   input: RecipeInput,
+  /** Shared app-wide; sets the levain's hydration. */
+  ratioId: string,
   tempUnit: TempUnit = 'C',
 ): Recipe {
-  const { totalFlour, hydrationPct, saltPct, levainPct, ratioId } = input
+  const { totalFlour, hydrationPct, saltPct, levainPct } = input
   const ratio = getRatio(ratioId)
 
   const levainWeight = totalFlour * (levainPct / 100)

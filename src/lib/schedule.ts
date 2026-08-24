@@ -29,7 +29,6 @@ export type StepKey =
   | 'cool'
 
 export interface PlanInput {
-  ratioId: string
   /** Ambient/dough temperature during bulk, in °C. */
   doughTempC: number
   /** Base bulk fermentation length at 24 °C, in hours. */
@@ -55,7 +54,6 @@ export interface PlanInput {
 }
 
 export const DEFAULT_PLAN: PlanInput = {
-  ratioId: '1-2-2',
   doughTempC: 24,
   bulkHours: 5,
   autolyseMin: 45,
@@ -130,11 +128,13 @@ interface StepSpec {
 
 export function buildSchedule(
   plan: PlanInput,
+  /** Shared app-wide, so it is passed in rather than stored on the plan. */
+  ratioId: string,
   anchor: AnchorKind,
   anchorAt: Date,
 ): Schedule {
   const factor = fermentFactor(plan.doughTempC)
-  const ratio = getRatio(plan.ratioId)
+  const ratio = getRatio(ratioId)
   const warnings: string[] = []
 
   const scaled = (min: number): number => Math.round(min * factor)

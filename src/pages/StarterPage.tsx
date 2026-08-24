@@ -5,12 +5,12 @@ import { usePersisted, usePrefs } from '../hooks'
 import { fmtDayTime, fmtDuration } from '../lib/format'
 import { grams } from '../lib/recipe'
 import {
-  DEFAULT_RATIO_ID,
   RATIOS,
   feedFromStarter,
   feedFromTotal,
   getRatio,
 } from '../lib/ratios'
+import { setPrefs } from '../lib/prefs'
 import { KEYS } from '../lib/storage'
 import { addTimer } from '../lib/timers'
 import {
@@ -22,7 +22,6 @@ import {
 } from '../lib/temperature'
 
 interface StarterState {
-  ratioId: string
   mode: 'from-starter' | 'to-total'
   starterGrams: number
   totalGrams: number
@@ -31,7 +30,6 @@ interface StarterState {
 }
 
 const DEFAULT_STARTER: StarterState = {
-  ratioId: DEFAULT_RATIO_ID,
   mode: 'from-starter',
   starterGrams: 20,
   totalGrams: 200,
@@ -41,10 +39,10 @@ const DEFAULT_STARTER: StarterState = {
 
 export function StarterPage() {
   const [s, setS] = usePersisted<StarterState>(KEYS.starter, DEFAULT_STARTER)
-  const { tempUnit } = usePrefs()
+  const { tempUnit, ratioId } = usePrefs()
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  const ratio = getRatio(s.ratioId)
+  const ratio = getRatio(ratioId)
   const factor = fermentFactor(s.tempC)
   const peakMinutes = Math.round(ratio.peakHoursAt24C * 60 * factor)
   const advice = tempAdvice(s.tempC)
@@ -115,9 +113,9 @@ export function StarterPage() {
               key={r.id}
               type="button"
               role="radio"
-              aria-checked={r.id === s.ratioId}
-              className={r.id === s.ratioId ? 'chip on' : 'chip'}
-              onClick={() => patch({ ratioId: r.id })}
+              aria-checked={r.id === ratioId}
+              className={r.id === ratioId ? 'chip on' : 'chip'}
+              onClick={() => setPrefs({ ratioId: r.id })}
             >
               <span className="chip-label">{r.label}</span>
               <span className="chip-sub">
@@ -239,7 +237,7 @@ export function StarterPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        patch({ ratioId: r.id })
+                        setPrefs({ ratioId: r.id })
                         setExpanded(null)
                       }}
                     >

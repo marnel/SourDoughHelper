@@ -23,6 +23,7 @@ import {
   type PlanInput,
   type ScheduledStep,
 } from '../lib/schedule'
+import { setPrefs } from '../lib/prefs'
 import { replaceAll, type NewTimer } from '../lib/timers'
 import { REFERENCE_C, formatTemp, tempAdvice } from '../lib/temperature'
 
@@ -63,7 +64,7 @@ function needsTimer(step: ScheduledStep): boolean {
 
 export function PlanPage() {
   const now = useNow(30_000)
-  const { tempUnit } = usePrefs()
+  const { tempUnit, ratioId } = usePrefs()
   const [plan, setPlan] = usePersisted<PlanInput>(KEYS.plan, DEFAULT_PLAN)
   const [anchor, setAnchor] = usePersisted<AnchorState>(
     KEYS.anchor,
@@ -72,8 +73,8 @@ export function PlanPage() {
   const [armed, setArmed] = useState(false)
 
   const schedule = useMemo(
-    () => buildSchedule(plan, anchor.kind, new Date(anchor.at)),
-    [plan, anchor.kind, anchor.at],
+    () => buildSchedule(plan, ratioId, anchor.kind, new Date(anchor.at)),
+    [plan, ratioId, anchor.kind, anchor.at],
   )
 
   const active = currentStep(schedule, now)
@@ -314,9 +315,9 @@ export function PlanPage() {
                 <button
                   key={r.id}
                   type="button"
-                  className={r.id === plan.ratioId ? 'chip on' : 'chip'}
-                  aria-pressed={r.id === plan.ratioId}
-                  onClick={() => patchPlan({ ratioId: r.id })}
+                  className={r.id === ratioId ? 'chip on' : 'chip'}
+                  aria-pressed={r.id === ratioId}
+                  onClick={() => setPrefs({ ratioId: r.id })}
                 >
                   <span className="chip-label">{r.label}</span>
                   <span className="chip-sub">
@@ -326,8 +327,8 @@ export function PlanPage() {
               ))}
             </div>
             <p className="hint">
-              Sets how long the levain build takes. The Starter tab explains
-              what each ratio is for.
+              Sets how long the levain build takes. Shared with the Starter
+              tab, which explains what each ratio is for.
             </p>
           </div>
         ) : null}
