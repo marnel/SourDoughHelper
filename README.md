@@ -47,6 +47,7 @@ src/
     schedule.ts     Step chain → timeline; forward and backward planning
     recipe.ts       Baker's percentages, including levain flour and water
     temperature.ts  Q10 fermentation scaling, unit conversion
+    bake.ts         A bake in progress: pinned start + per-step adjustments
     timers.ts       Timer store, persisted as absolute timestamps
     notify.ts       Notifications, chime, vibration, wake lock
     theme.ts        Palette metadata; applies data-palette / data-theme
@@ -124,9 +125,29 @@ weigh out 900 g flour and 650 g water, because the levain already brought 100 g
 of each. This is why "75% hydration" means the same thing regardless of how big
 your levain is.
 
+**Planning and baking need different anchors.** While planning you work
+backwards from a target and the start time falls out of it. Once the dough is
+in the bowl the start is a fact and the *finish* is what moves. Conflating the
+two was a real bug: extending a bulk on a backward-anchored plan held the bake
+time fixed and slid the start an hour earlier, into the past. Starting a bake
+therefore pins `startedAt` and rebuilds the schedule forward from it, so
+adjustments push the finish later — which is what actually happens in a
+kitchen. See `src/lib/bake.ts`.
+
+**Mid-bake adjustments are data, not a mutated schedule.** An `ActiveBake`
+holds a map of extra minutes per step; `buildSchedule` applies them after
+temperature scaling, since they record an observation about this dough rather
+than anything the model could predict. The schedule stays fully derived, so
+adjustments compose, survive a reload, and can be reasoned about one at a time.
+
 **Only waits get timers.** Hands-on steps like shaping are named in the `Next:`
 line of the preceding alert instead of getting their own timer, which would fire
 at the same moment and say something meaningless like "Final shape — done".
+
+**Re-arming never touches a timer you set yourself.** Schedule timers carry
+`source: 'bake'`; `replaceBakeTimers` swaps only those. Adjusting a running
+bake re-times the plan's alarms every time, and it would be hostile for that to
+silently delete the "check the oven stone" timer you added five minutes ago.
 
 **Temperatures are stored in Celsius and displayed in the chosen unit.** The
 unit is a single shared preference, so the fermentation maths never has to know

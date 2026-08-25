@@ -1345,6 +1345,70 @@ button:disabled {
   gap: 9px;
 }
 
+/* --- Bake in progress --------------------------------------------------- */
+
+.now-step {
+  padding: 13px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.now-label {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--accent);
+}
+
+.now-step h3 {
+  font-size: 1.05rem;
+  margin-top: 3px;
+}
+
+.now-clock {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Four equal targets, comfortably tappable with one thumb mid-bake. */
+.adjust-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+}
+
+.adjust-row button {
+  padding: 10px 4px;
+  min-height: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+.drift {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.drift > div {
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  text-align: center;
+}
+
+.drift strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* --- Settings sheet ----------------------------------------------------- */
 
 .gear {

@@ -38,7 +38,14 @@ export function MethodPage() {
 
   // Durations only — anchored anywhere, since this page shows lengths not clocks.
   const steps = useMemo(
-    () => buildSchedule(plan, ratioId, tempC, 'feed-starter', new Date()).steps,
+    () =>
+      buildSchedule({
+        plan,
+        ratioId,
+        tempC,
+        anchor: 'feed-starter',
+        anchorAt: new Date(),
+      }).steps,
     [plan, ratioId, tempC],
   )
 

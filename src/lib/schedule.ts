@@ -96,6 +96,8 @@ export interface ScheduledStep {
   parent?: StepKey
   /** Set when the step's duration was stretched or squeezed by temperature. */
   tempAdjusted: boolean
+  /** Minutes added (or removed) by a mid-bake adjustment. */
+  adjustedMin: number
 }
 
 export interface Schedule {
@@ -123,14 +125,32 @@ interface StepSpec {
   include?: boolean
 }
 
-export function buildSchedule(
-  plan: PlanInput,
+/**
+ * Extra minutes granted to a step, keyed by StepKey — how a bake in progress
+ * records "the bulk needed another hour". Applied after temperature scaling,
+ * because it represents an observation about this particular dough rather than
+ * anything the model could have predicted.
+ */
+export type Adjustments = Partial<Record<StepKey, number>>
+
+export interface ScheduleRequest {
+  plan: PlanInput
   /** Shared app-wide, so these are passed in rather than stored on the plan. */
-  ratioId: string,
-  tempC: number,
-  anchor: AnchorKind,
-  anchorAt: Date,
-): Schedule {
+  ratioId: string
+  tempC: number
+  anchor: AnchorKind
+  anchorAt: Date
+  adjustments?: Adjustments
+}
+
+export function buildSchedule({
+  plan,
+  ratioId,
+  tempC,
+  anchor,
+  anchorAt,
+  adjustments = {},
+}: ScheduleRequest): Schedule {
   const factor = fermentFactor(tempC)
   const ratio = getRatio(ratioId)
   const warnings: string[] = []
@@ -273,7 +293,9 @@ export function buildSchedule(
 
   for (const spec of specs) {
     if (spec.include === false) continue
-    const duration = spec.scales ? scaled(spec.durationMin) : spec.durationMin
+    const base = spec.scales ? scaled(spec.durationMin) : spec.durationMin
+    const adjustment = adjustments[spec.key] ?? 0
+    const duration = Math.max(0, base + adjustment)
 
     let startMin: number
     let endMin: number
@@ -294,7 +316,8 @@ export function buildSchedule(
       detail: spec.detail,
       durationMin: duration,
       timer: spec.timer,
-      tempAdjusted: spec.scales && duration !== spec.durationMin,
+      tempAdjusted: spec.scales && base !== spec.durationMin,
+      adjustedMin: adjustment,
       startMin,
       endMin,
     })
@@ -315,6 +338,7 @@ export function buildSchedule(
           durationMin: 3,
           timer: false,
           tempAdjusted: gap !== plan.foldIntervalMin,
+          adjustedMin: 0,
           parent: 'bulk',
           startMin: at,
           endMin: at + 3,

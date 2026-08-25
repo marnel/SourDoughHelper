@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, Details, Segmented, Slider, Stepper } from '../components/Controls'
 import { TempSlider } from '../components/TempSlider'
 import { usePersisted, useNow, usePrefs } from '../hooks'
 import {
+  fmtCountdown,
   fmtDayHeading,
   fmtDayTime,
   fmtDuration,
@@ -21,10 +22,23 @@ import {
   currentStep,
   type AnchorKind,
   type PlanInput,
+  type Schedule,
   type ScheduledStep,
+  type StepKey,
 } from '../lib/schedule'
 import { setPrefs } from '../lib/prefs'
-import { replaceAll, type NewTimer } from '../lib/timers'
+import {
+  adjustStep,
+  endStepNow,
+  startBake,
+  totalDrift,
+  type ActiveBake,
+} from '../lib/bake'
+import {
+  clearBakeTimers,
+  replaceBakeTimers,
+  type NewTimer,
+} from '../lib/timers'
 import { REFERENCE_C, formatTemp } from '../lib/temperature'
 
 interface AnchorState {
@@ -62,6 +76,35 @@ function needsTimer(step: ScheduledStep): boolean {
   return step.timer || step.key === 'fold'
 }
 
+/**
+ * Turn a schedule into the timers it implies. Hoisted out of the component so
+ * the same construction serves both arming a bake and re-timing one after an
+ * adjustment — the two must not drift apart.
+ */
+function bakeTimersFor(schedule: Schedule, from: number): NewTimer[] {
+  return schedule.steps
+    .filter((s) => needsTimer(s) && alertMoment(s) > from)
+    .map((step) => {
+      const at = alertMoment(step)
+      const isStartAlert = step.key === 'fold' || step.key === 'preheat'
+      const following = schedule.steps.find(
+        (s) => s.start >= step.end && s.key !== 'fold',
+      )
+      return {
+        label: isStartAlert ? step.title : `${step.title} — done`,
+        note: isStartAlert
+          ? step.detail
+          : following
+            ? `Next: ${following.title}.`
+            : 'That is the last step.',
+        durationMs: Math.max(1000, at - from),
+        endsAt: at,
+        stepKey: step.key,
+        source: 'bake' as const,
+      }
+    })
+}
+
 export function PlanPage() {
   const now = useNow(30_000)
   const { tempUnit, ratioId, tempC } = usePrefs()
@@ -70,11 +113,22 @@ export function PlanPage() {
     KEYS.anchor,
     defaultAnchor(),
   )
+  const [bake, setBake] = usePersisted<ActiveBake | null>(KEYS.bake, null)
   const [armed, setArmed] = useState(false)
 
+  // While a bake is running the schedule is pinned forward from its real start
+  // time; only during planning does the anchor control drive it.
   const schedule = useMemo(
-    () => buildSchedule(plan, ratioId, tempC, anchor.kind, new Date(anchor.at)),
-    [plan, ratioId, tempC, anchor.kind, anchor.at],
+    () =>
+      buildSchedule({
+        plan,
+        ratioId,
+        tempC,
+        anchor: bake ? 'feed-starter' : anchor.kind,
+        anchorAt: new Date(bake ? bake.startedAt : anchor.at),
+        adjustments: bake?.adjustments,
+      }),
+    [plan, ratioId, tempC, bake, anchor.kind, anchor.at],
   )
 
   const active = currentStep(schedule, now)
@@ -90,27 +144,38 @@ export function PlanPage() {
   // passed. Saying so is far more useful than quietly showing a past timeline.
   const lateBy = now - start
 
-  const armTimers = () => {
-    const next: NewTimer[] = upcoming.map((step) => {
-      const at = alertMoment(step)
-      const isStartAlert = step.key === 'fold' || step.key === 'preheat'
-      const following = schedule.steps.find((s) => s.start >= step.end && s.key !== 'fold')
-      return {
-        label: isStartAlert ? step.title : `${step.title} — done`,
-        note: isStartAlert
-          ? step.detail
-          : following
-            ? `Next: ${following.title}.`
-            : 'That is the last step.',
-        durationMs: Math.max(1000, at - Date.now()),
-        endsAt: at,
-        stepKey: step.key,
-      }
-    })
-    replaceAll(next)
+  const beginBake = () => {
+    setBake(startBake(start))
     setArmed(true)
     window.setTimeout(() => setArmed(false), 2500)
   }
+
+  const endBake = () => {
+    setBake(null)
+    clearBakeTimers()
+  }
+
+  const adjust = (key: StepKey, deltaMin: number) => {
+    setBake((prev) => (prev ? adjustStep(prev, key, deltaMin) : prev))
+  }
+
+  const readyNow = (step: ScheduledStep) => {
+    setBake((prev) =>
+      prev ? endStepNow(prev, step.key, step.end, Date.now()) : prev,
+    )
+  }
+
+  // Any change to a running bake's schedule re-times its alarms. Ad-hoc timers
+  // are left alone; only ones armed from the plan are replaced.
+  useEffect(() => {
+    if (!bake) return
+    replaceBakeTimers(bakeTimersFor(schedule, Date.now()))
+  }, [bake, schedule])
+
+  const drift = bake ? totalDrift(bake) : 0
+  // Read the bake's end off the step itself rather than subtracting the
+  // planned cooling time, which would be wrong the moment cooling is adjusted.
+  const outOfOvenAt = schedule.steps.find((s) => s.key === 'bakeLidOff')?.end
 
   // Group the timeline into day sections so an overnight plan reads clearly.
   const days = useMemo(() => {
@@ -126,9 +191,92 @@ export function PlanPage() {
 
   return (
     <div className="page">
+      {bake ? (
+        <Card
+          title="Bake in progress"
+          subtitle={`Started ${fmtDayTime(bake.startedAt)}`}
+          tone="accent"
+        >
+          {active ? (
+            <>
+              <div className="now-step">
+                <span className="now-label">Now</span>
+                <h3>{active.title}</h3>
+                <p className="now-clock">
+                  {fmtCountdown(active.end - now)} left · until{' '}
+                  {fmtTime(active.end)}
+                </p>
+              </div>
+
+              <div className="field">
+                <div className="field-head">
+                  <span>Not ready yet?</span>
+                </div>
+                <div className="adjust-row">
+                  <button type="button" onClick={() => adjust(active.key, -15)}>
+                    −15m
+                  </button>
+                  <button type="button" onClick={() => adjust(active.key, 15)}>
+                    +15m
+                  </button>
+                  <button type="button" onClick={() => adjust(active.key, 30)}>
+                    +30m
+                  </button>
+                  <button type="button" onClick={() => adjust(active.key, 60)}>
+                    +1h
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="primary wide"
+                  onClick={() => readyNow(active)}
+                >
+                  It is ready now — move on
+                </button>
+                <p className="hint">
+                  Shifts every later step by the same amount and re-times your
+                  alarms. Timers you added yourself are left alone.
+                </p>
+              </div>
+            </>
+          ) : (
+            <p className="now-clock">
+              {now < start
+                ? `Starts ${fmtRelative(start, now)}.`
+                : 'Every step is done. Enjoy the bread.'}
+            </p>
+          )}
+
+          <div className="drift">
+            <div>
+              <span className="summary-label">Out of the oven</span>
+              <strong>
+                {outOfOvenAt ? fmtDayTime(outOfOvenAt) : '—'}
+              </strong>
+            </div>
+            <div>
+              <span className="summary-label">Drift</span>
+              <strong>
+                {drift === 0
+                  ? 'on plan'
+                  : `${drift > 0 ? '+' : '−'}${fmtDuration(Math.abs(drift))}`}
+              </strong>
+            </div>
+          </div>
+
+          <button type="button" className="ghost wide" onClick={endBake}>
+            End bake
+          </button>
+        </Card>
+      ) : null}
+
       <Card
-        title="When do you want it?"
-        subtitle="Tell it the one time you actually know, and it works out the rest."
+        title={bake ? 'Original plan' : 'When do you want it?'}
+        subtitle={
+          bake
+            ? 'Editing these still applies — the bake keeps its start time.'
+            : 'Tell it the one time you actually know, and it works out the rest.'
+        }
       >
         <Segmented
           value={anchor.kind}
@@ -212,22 +360,26 @@ export function PlanPage() {
           </ul>
         ) : null}
 
-        <button
-          type="button"
-          className="primary wide"
-          onClick={armTimers}
-          disabled={upcoming.length === 0}
-        >
-          {armed
-            ? `✓ ${upcoming.length} timers set`
-            : upcoming.length === 0
-              ? 'This schedule is entirely in the past'
-              : `Set ${upcoming.length} timers from this plan`}
-        </button>
-        <p className="hint">
-          Replaces whatever is on the Timers tab. Only steps still ahead of you
-          get a timer.
-        </p>
+        {!bake ? (
+          <>
+            <button
+              type="button"
+              className="primary wide"
+              onClick={beginBake}
+              disabled={upcoming.length === 0}
+            >
+              {armed
+                ? `✓ Bake started, ${upcoming.length} timers set`
+                : upcoming.length === 0
+                  ? 'This schedule is entirely in the past'
+                  : `Start this bake · ${upcoming.length} timers`}
+            </button>
+            <p className="hint">
+              Pins the bake to its start time so you can push steps later as you
+              go. Sets a timer for every step still ahead of you.
+            </p>
+          </>
+        ) : null}
       </Card>
 
       <Card title="Timeline">

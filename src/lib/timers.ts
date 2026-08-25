@@ -33,6 +33,11 @@ export interface Timer {
   dismissed: boolean
   /** Which schedule step this came from, if any. */
   stepKey?: string
+  /**
+   * 'bake' marks a timer armed from the schedule. Re-arming replaces only
+   * these, so a timer you added by hand mid-bake survives.
+   */
+  source?: 'bake'
 }
 
 type Listener = () => void
@@ -67,6 +72,7 @@ export interface NewTimer {
   durationMs: number
   note?: string
   stepKey?: string
+  source?: 'bake'
   /** Fire at a specific moment rather than `durationMs` from now. */
   endsAt?: number
 }
@@ -84,16 +90,23 @@ export function addTimer(input: NewTimer): Timer {
     alerted: false,
     dismissed: false,
     stepKey: input.stepKey,
+    source: input.source,
   }
   commit([...timers, timer])
   return timer
 }
 
-/** Replace every timer — used when a schedule is loaded wholesale. */
-export function replaceAll(next: NewTimer[]): void {
+/**
+ * Swap in a fresh set of schedule timers, leaving anything the baker added by
+ * hand untouched. Called every time a bake is armed or re-timed, so it has to
+ * be non-destructive to ad-hoc timers.
+ */
+export function replaceBakeTimers(next: NewTimer[]): void {
   const now = Date.now()
-  commit(
-    next.map((input) => ({
+  const kept = timers.filter((t) => t.source !== 'bake')
+  commit([
+    ...kept,
+    ...next.map((input) => ({
       id: newId(),
       label: input.label,
       note: input.note,
@@ -104,8 +117,14 @@ export function replaceAll(next: NewTimer[]): void {
       alerted: false,
       dismissed: false,
       stepKey: input.stepKey,
+      source: 'bake' as const,
     })),
-  )
+  ])
+}
+
+/** Drop every schedule timer, e.g. when a bake is abandoned. */
+export function clearBakeTimers(): void {
+  commit(timers.filter((t) => t.source !== 'bake'))
 }
 
 function update(id: string, patch: (t: Timer) => Timer): void {

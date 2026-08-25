@@ -52,6 +52,6 @@ export const KEYS = {
   timers: 'timers',
   starter: 'starter',
   prefs: 'prefs',
-  feedLog: 'feed-log',
   anchor: 'anchor',
+  bake: 'bake',
 } as const
