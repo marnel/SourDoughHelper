@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Card, Details, Slider, Stepper } from '../components/Controls'
-import { usePersisted, usePrefs } from '../hooks'
+import { usePersisted, usePrefs, useStore } from '../hooks'
 import { fmtDuration } from '../lib/format'
 import { REFERENCE_C, formatTemp } from '../lib/temperature'
 import { RATIOS, getRatio } from '../lib/ratios'
@@ -14,7 +14,7 @@ import {
 } from '../lib/recipe'
 import { setPrefs } from '../lib/prefs'
 import { KEYS } from '../lib/storage'
-import { DEFAULT_PLAN, buildSchedule, type PlanInput } from '../lib/schedule'
+import { buildSchedule, planStore } from '../lib/schedule'
 
 interface RecipeState extends RecipeInput {
   loaves: number
@@ -27,7 +27,7 @@ export function MethodPage() {
   const { tempUnit, ratioId, tempC } = usePrefs()
   // Read-only: the method text and its durations come from the saved plan, so
   // this page always agrees with the Plan tab.
-  const [plan] = usePersisted<PlanInput>(KEYS.plan, DEFAULT_PLAN)
+  const plan = useStore(planStore)
 
   const recipe = useMemo(
     () => computeRecipe(r, ratioId, tempUnit),

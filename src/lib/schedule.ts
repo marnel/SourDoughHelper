@@ -10,6 +10,8 @@
  */
 
 import { getRatio } from './ratios'
+import { KEYS } from './storage'
+import { createStore } from './stores'
 import { fermentFactor } from './temperature'
 
 export type StepKey =
@@ -65,6 +67,12 @@ export const DEFAULT_PLAN: PlanInput = {
   coolMin: 120,
   includeLevainBuild: true,
 }
+
+/**
+ * Shared: the Plan tab edits it, the Method tab renders its durations, and the
+ * app shell needs it to re-time a running bake from whichever tab you are on.
+ */
+export const planStore = createStore<PlanInput>(KEYS.plan, DEFAULT_PLAN)
 
 export type AnchorKind =
   | 'feed-starter'

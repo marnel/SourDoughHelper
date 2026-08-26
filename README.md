@@ -149,6 +149,23 @@ at the same moment and say something meaningless like "Final shape — done".
 bake re-times the plan's alarms every time, and it would be hostile for that to
 silently delete the "check the oven stone" timer you added five minutes ago.
 
+**Schedule timers are views of a step, not independent timers.** They get
+"Done early" and "+15m", which move the *bake*; the ordinary per-timer controls
+are hidden, because editing one directly would desync it from the schedule and
+be silently undone by the next re-arm. Only the step currently under way is
+actionable — offering it on later steps let you collapse the entire bulk to
+nothing while still mixing. Folds get no controls at all: they alert at their
+start, and being late to one moves nothing downstream.
+
+**Anything read or written from more than one place is a store**, not
+`usePersisted`. Two components calling `usePersisted` with the same key get two
+independent copies that both write to localStorage and neither hears the other
+— the cause of both the feeding-ratio and kitchen-temperature bugs. `prefs`,
+`timers`, `planStore` and `bakeStore` are all shared stores; only genuinely
+page-local state uses `usePersisted`. Re-arming a bake lives in `App` for the
+same reason: one route is mounted at a time, and steps are usually marked done
+from the Timers tab while the Plan tab is unmounted.
+
 **Temperatures are stored in Celsius and displayed in the chosen unit.** The
 unit is a single shared preference, so the fermentation maths never has to know
 about it. Fixed appliance temperatures — oven, doneness — are written with both

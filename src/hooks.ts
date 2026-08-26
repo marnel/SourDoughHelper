@@ -11,6 +11,7 @@ import {
   subscribe as subscribePrefs,
   type Prefs,
 } from './lib/prefs'
+import type { Store } from './lib/stores'
 
 /** A clock that re-renders on an interval. Default 1s, for countdowns. */
 export function useNow(intervalMs = 1000): number {
@@ -53,6 +54,10 @@ export function useTimers(): Timer[] {
 
 export function usePrefs(): Prefs {
   return useSyncExternalStore(subscribePrefs, getPrefs, getPrefs)
+}
+
+export function useStore<T>(store: Store<T>): T {
+  return useSyncExternalStore(store.subscribe, store.get, store.get)
 }
 
 /**

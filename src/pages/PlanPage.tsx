@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Card, Details, Segmented, Slider, Stepper } from '../components/Controls'
 import { TempSlider } from '../components/TempSlider'
-import { usePersisted, useNow, usePrefs } from '../hooks'
+import { usePersisted, useNow, usePrefs, useStore } from '../hooks'
 import {
   fmtCountdown,
   fmtDayHeading,
@@ -19,26 +19,24 @@ import {
   ANCHOR_LABELS,
   DEFAULT_PLAN,
   buildSchedule,
+  planStore,
   currentStep,
   type AnchorKind,
   type PlanInput,
-  type Schedule,
   type ScheduledStep,
   type StepKey,
 } from '../lib/schedule'
 import { setPrefs } from '../lib/prefs'
 import {
   adjustStep,
+  alertMoment,
+  bakeStore,
   endStepNow,
+  needsTimer,
   startBake,
   totalDrift,
-  type ActiveBake,
 } from '../lib/bake'
-import {
-  clearBakeTimers,
-  replaceBakeTimers,
-  type NewTimer,
-} from '../lib/timers'
+import { clearBakeTimers } from '../lib/timers'
 import { REFERENCE_C, formatTemp } from '../lib/temperature'
 
 interface AnchorState {
@@ -55,69 +53,15 @@ function defaultAnchor(): AnchorState {
   return { kind: 'out-of-oven', at: t.getTime() }
 }
 
-/**
- * Which moment in a step the baker needs to be told about.
- *
- * Folds and the preheat are announced at their *start* — "fold now", "oven on
- * now". Everything else is a wait, so the alert belongs at the end, where it
- * doubles as the cue for whatever comes next.
- */
-function alertMoment(step: ScheduledStep): number {
-  return step.key === 'fold' || step.key === 'preheat' ? step.start : step.end
-}
-
-/**
- * Hands-on steps (mixing, shaping) deliberately get no timer of their own —
- * they are named in the `Next:` line of the preceding alert instead. Giving
- * them one produced nonsense like "Final shape — done" firing at the same
- * moment as the step that actually matters.
- */
-function needsTimer(step: ScheduledStep): boolean {
-  return step.timer || step.key === 'fold'
-}
-
-/**
- * Turn a schedule into the timers it implies. Hoisted out of the component so
- * the same construction serves both arming a bake and re-timing one after an
- * adjustment — the two must not drift apart.
- */
-function bakeTimersFor(schedule: Schedule, from: number): NewTimer[] {
-  return schedule.steps
-    .filter((s) => needsTimer(s) && alertMoment(s) > from)
-    .map((step) => {
-      const at = alertMoment(step)
-      const isStartAlert = step.key === 'fold' || step.key === 'preheat'
-      const following = schedule.steps.find(
-        (s) => s.start >= step.end && s.key !== 'fold',
-      )
-      return {
-        // The label is on screen for the whole countdown, so it names what is
-        // happening now. An earlier version appended "— done", which meant a
-        // timer with thirty minutes left read "Autolyse — done". What to do
-        // when it fires belongs in the note, which is the notification body.
-        label: step.title,
-        note: isStartAlert
-          ? step.detail
-          : following
-            ? `Next: ${following.title}.`
-            : 'That is the last step.',
-        durationMs: Math.max(1000, at - from),
-        endsAt: at,
-        stepKey: step.key,
-        source: 'bake' as const,
-      }
-    })
-}
-
 export function PlanPage() {
   const now = useNow(30_000)
   const { tempUnit, ratioId, tempC } = usePrefs()
-  const [plan, setPlan] = usePersisted<PlanInput>(KEYS.plan, DEFAULT_PLAN)
+  const plan = useStore(planStore)
   const [anchor, setAnchor] = usePersisted<AnchorState>(
     KEYS.anchor,
     defaultAnchor(),
   )
-  const [bake, setBake] = usePersisted<ActiveBake | null>(KEYS.bake, null)
+  const bake = useStore(bakeStore)
   const [armed, setArmed] = useState(false)
 
   // While a bake is running the schedule is pinned forward from its real start
@@ -137,7 +81,7 @@ export function PlanPage() {
 
   const active = currentStep(schedule, now)
   const patchPlan = (p: Partial<PlanInput>) =>
-    setPlan((prev) => ({ ...prev, ...p }))
+    planStore.set((prev) => ({ ...prev, ...p }))
 
   const upcoming = schedule.steps.filter(
     (s) => needsTimer(s) && alertMoment(s) > now,
@@ -149,32 +93,25 @@ export function PlanPage() {
   const lateBy = now - start
 
   const beginBake = () => {
-    setBake(startBake(start))
+    bakeStore.set(startBake(start))
     setArmed(true)
     window.setTimeout(() => setArmed(false), 2500)
   }
 
   const endBake = () => {
-    setBake(null)
+    bakeStore.set(null)
     clearBakeTimers()
   }
 
   const adjust = (key: StepKey, deltaMin: number) => {
-    setBake((prev) => (prev ? adjustStep(prev, key, deltaMin) : prev))
+    bakeStore.set((prev) => (prev ? adjustStep(prev, key, deltaMin) : prev))
   }
 
   const readyNow = (step: ScheduledStep) => {
-    setBake((prev) =>
+    bakeStore.set((prev) =>
       prev ? endStepNow(prev, step.key, step.end, Date.now()) : prev,
     )
   }
-
-  // Any change to a running bake's schedule re-times its alarms. Ad-hoc timers
-  // are left alone; only ones armed from the plan are replaced.
-  useEffect(() => {
-    if (!bake) return
-    replaceBakeTimers(bakeTimersFor(schedule, Date.now()))
-  }, [bake, schedule])
 
   const drift = bake ? totalDrift(bake) : 0
   // Read the bake's end off the step itself rather than subtracting the
@@ -608,7 +545,7 @@ export function PlanPage() {
         <button
           type="button"
           className="ghost wide"
-          onClick={() => setPlan(DEFAULT_PLAN)}
+          onClick={() => planStore.set(DEFAULT_PLAN)}
         >
           Reset to defaults
         </button>

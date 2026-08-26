@@ -13,7 +13,15 @@
  * is what actually happens in a kitchen.
  */
 
-import type { Adjustments, StepKey } from './schedule'
+import type {
+  Adjustments,
+  Schedule,
+  ScheduledStep,
+  StepKey,
+} from './schedule'
+import type { NewTimer } from './timers'
+import { KEYS } from './storage'
+import { createStore } from './stores'
 
 export interface ActiveBake {
   /** Epoch ms of the first step — the moment this bake is pinned to. */
@@ -21,6 +29,12 @@ export interface ActiveBake {
   /** Minutes added to individual steps as the bake ran long or short. */
   adjustments: Adjustments
 }
+
+/**
+ * Shared because the Plan tab starts and ends bakes while the Timers tab
+ * advances steps, and only one of those pages is mounted at a time.
+ */
+export const bakeStore = createStore<ActiveBake | null>(KEYS.bake, null)
 
 export function startBake(startedAt: number): ActiveBake {
   return { startedAt, adjustments: {} }
@@ -63,4 +77,67 @@ export function totalDrift(bake: ActiveBake): number {
 
 export function isAdjusted(bake: ActiveBake): boolean {
   return totalDrift(bake) !== 0
+}
+
+/**
+ * Which moment in a step the baker needs to be told about.
+ *
+ * Folds and the preheat are announced at their *start* — "fold now", "oven on
+ * now". Everything else is a wait, so the alert belongs at the end, where it
+ * doubles as the cue for whatever comes next.
+ */
+/**
+ * Whether a step can be shifted from its timer. Only steps alerting at their
+ * *end* qualify, since that is the only case where the timer's endsAt is the
+ * step's end. Folds and the preheat announce their start.
+ */
+export function isShiftableStep(key: string | undefined): key is StepKey {
+  return key !== undefined && key !== 'fold' && key !== 'preheat'
+}
+
+export function alertMoment(step: ScheduledStep): number {
+  return step.key === 'fold' || step.key === 'preheat' ? step.start : step.end
+}
+
+/**
+ * Hands-on steps (mixing, shaping) deliberately get no timer of their own —
+ * they are named in the `Next:` line of the preceding alert instead. Giving
+ * them one produced nonsense like "Final shape — done" firing at the same
+ * moment as the step that actually matters.
+ */
+export function needsTimer(step: ScheduledStep): boolean {
+  return step.timer || step.key === 'fold'
+}
+
+/**
+ * Turn a schedule into the timers it implies. Hoisted out of the component so
+ * the same construction serves both arming a bake and re-timing one after an
+ * adjustment — the two must not drift apart.
+ */
+export function bakeTimersFor(schedule: Schedule, from: number): NewTimer[] {
+  return schedule.steps
+    .filter((s) => needsTimer(s) && alertMoment(s) > from)
+    .map((step) => {
+      const at = alertMoment(step)
+      const isStartAlert = step.key === 'fold' || step.key === 'preheat'
+      const following = schedule.steps.find(
+        (s) => s.start >= step.end && s.key !== 'fold',
+      )
+      return {
+        // The label is on screen for the whole countdown, so it names what is
+        // happening now. An earlier version appended "— done", which meant a
+        // timer with thirty minutes left read "Autolyse — done". What to do
+        // when it fires belongs in the note, which is the notification body.
+        label: step.title,
+        note: isStartAlert
+          ? step.detail
+          : following
+            ? `Next: ${following.title}.`
+            : 'That is the last step.',
+        durationMs: Math.max(1000, at - from),
+        endsAt: at,
+        stepKey: step.key,
+        source: 'bake' as const,
+      }
+    })
 }

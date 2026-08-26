@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, Details } from '../components/Controls'
 import { TimerCard } from '../components/TimerCard'
 import { useNow, useTimers } from '../hooks'
 import { fmtDuration } from '../lib/format'
+import { isShiftableStep } from '../lib/bake'
 import {
   addTimer,
   clearAll,
@@ -74,6 +75,19 @@ export function TimersPage() {
     .sort((a, b) => remaining(a, now) - remaining(b, now))
   const done = timers.filter((t) => isFinished(t, now) && t.dismissed)
 
+  /*
+   * Only the step you are actually in can be marked done early — offering it
+   * on a later step let you collapse, say, the whole bulk to nothing while
+   * still mixing. The live step is the soonest shiftable schedule timer;
+   * folds fire inside a step and so are skipped.
+   */
+  const liveBakeTimerId = useMemo(() => {
+    const shiftable = timers
+      .filter((t) => t.source === 'bake' && isShiftableStep(t.stepKey))
+      .sort((a, b) => (a.endsAt ?? Infinity) - (b.endsAt ?? Infinity))
+    return shiftable[0]?.id
+  }, [timers])
+
   const enableAlerts = async () => {
     primeAudio()
     setPerm(await requestNotifyPermission())
@@ -113,7 +127,12 @@ export function TimersPage() {
         <Card title={finished.length === 1 ? 'Due now' : `${finished.length} due now`}>
           <div className="timer-list">
             {finished.map((t) => (
-              <TimerCard key={t.id} timer={t} now={now} />
+              <TimerCard
+                key={t.id}
+                timer={t}
+                now={now}
+                isLiveStep={t.id === liveBakeTimerId}
+              />
             ))}
           </div>
         </Card>
@@ -130,7 +149,12 @@ export function TimersPage() {
         {running.length > 0 ? (
           <div className="timer-list">
             {running.map((t) => (
-              <TimerCard key={t.id} timer={t} now={now} />
+              <TimerCard
+                key={t.id}
+                timer={t}
+                now={now}
+                isLiveStep={t.id === liveBakeTimerId}
+              />
             ))}
           </div>
         ) : null}
@@ -199,7 +223,12 @@ export function TimersPage() {
         <Card title="Finished">
           <div className="timer-list">
             {done.map((t) => (
-              <TimerCard key={t.id} timer={t} now={now} />
+              <TimerCard
+                key={t.id}
+                timer={t}
+                now={now}
+                isLiveStep={t.id === liveBakeTimerId}
+              />
             ))}
           </div>
         </Card>

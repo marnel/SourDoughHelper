@@ -1,7 +1,16 @@
-import { useEffect, useState } from 'react'
-import { useNow, usePrefs, useRoute, useTimers, type Route } from './hooks'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  useNow,
+  usePrefs,
+  useRoute,
+  useStore,
+  useTimers,
+  type Route,
+} from './hooks'
 import { fmtCountdown } from './lib/format'
-import { isFinished, remaining, startClock } from './lib/timers'
+import { bakeStore, bakeTimersFor } from './lib/bake'
+import { buildSchedule, planStore } from './lib/schedule'
+import { isFinished, remaining, replaceBakeTimers, startClock } from './lib/timers'
 import { primeAudio } from './lib/notify'
 import { initTheme } from './lib/prefs'
 import { resolveMode, watchSystemTheme } from './lib/theme'
@@ -39,6 +48,8 @@ export default function App() {
   const now = useNow(1000)
   const timers = useTimers()
   const prefs = usePrefs()
+  const plan = useStore(planStore)
+  const bake = useStore(bakeStore)
   const [install, setInstall] = useState<InstallPromptEvent | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Re-render on an OS light/dark flip so the swatch previews follow along.
@@ -53,6 +64,32 @@ export default function App() {
   }, [])
 
   const resolvedMode = resolveMode(prefs.mode)
+
+  /*
+   * Re-timing a running bake lives here rather than on the Plan tab, because
+   * only one route is mounted at a time and steps are most often marked done
+   * from the Timers tab. Ad-hoc timers are untouched; only the plan's own are
+   * replaced.
+   */
+  const bakeSchedule = useMemo(
+    () =>
+      bake
+        ? buildSchedule({
+            plan,
+            ratioId: prefs.ratioId,
+            tempC: prefs.tempC,
+            anchor: 'feed-starter',
+            anchorAt: new Date(bake.startedAt),
+            adjustments: bake.adjustments,
+          })
+        : null,
+    [bake, plan, prefs.ratioId, prefs.tempC],
+  )
+
+  useEffect(() => {
+    if (!bakeSchedule) return
+    replaceBakeTimers(bakeTimersFor(bakeSchedule, Date.now()))
+  }, [bakeSchedule])
 
   useEffect(() => {
     const onPrompt = (e: Event) => {
