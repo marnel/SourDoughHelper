@@ -233,10 +233,11 @@ export function tick(): void {
 
   for (const t of due) {
     const late = now - (t.endsAt ?? now)
-    const body =
-      late > 90_000
-        ? `Was due ${Math.round(late / 60_000)} minutes ago.`
-        : (t.note ?? 'Timer finished.')
+    // Being late is the moment the next instruction matters most, so keep it
+    // rather than replacing the note with the lateness.
+    const overdue =
+      late > 90_000 ? `Was due ${Math.round(late / 60_000)} minutes ago. ` : ''
+    const body = `${overdue}${t.note ?? 'Timer finished.'}`
     void showNotification(t.label, body, t.id)
     vibrate()
     chime()

@@ -60,9 +60,9 @@ export function usePrefs(): Prefs {
  * the Android back button working the way people expect inside an installed
  * app, and it avoids a router dependency in a four-page app.
  */
-export type Route = 'starter' | 'plan' | 'timers' | 'method'
+export type Route = 'starter' | 'method' | 'plan' | 'timers'
 
-const ROUTES: Route[] = ['starter', 'plan', 'timers', 'method']
+const ROUTES: Route[] = ['starter', 'method', 'plan', 'timers']
 
 function readHash(): Route {
   const raw = window.location.hash.replace(/^#\/?/, '')

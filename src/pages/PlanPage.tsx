@@ -91,7 +91,11 @@ function bakeTimersFor(schedule: Schedule, from: number): NewTimer[] {
         (s) => s.start >= step.end && s.key !== 'fold',
       )
       return {
-        label: isStartAlert ? step.title : `${step.title} — done`,
+        // The label is on screen for the whole countdown, so it names what is
+        // happening now. An earlier version appended "— done", which meant a
+        // timer with thirty minutes left read "Autolyse — done". What to do
+        // when it fires belongs in the note, which is the notification body.
+        label: step.title,
         note: isStartAlert
           ? step.detail
           : following

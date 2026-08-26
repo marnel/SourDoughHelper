@@ -11,11 +11,15 @@ import { PlanPage } from './pages/PlanPage'
 import { StarterPage } from './pages/StarterPage'
 import { TimersPage } from './pages/TimersPage'
 
+/*
+ * Ordered as the bake actually runs: feed the starter, work out the formula
+ * and the steps, schedule it, then run the timers.
+ */
 const TABS: Array<{ route: Route; label: string; icon: string }> = [
   { route: 'starter', label: 'Starter', icon: '🫙' },
+  { route: 'method', label: 'Method', icon: '🍞' },
   { route: 'plan', label: 'Plan', icon: '🗓' },
   { route: 'timers', label: 'Timers', icon: '⏱' },
-  { route: 'method', label: 'Method', icon: '🍞' },
 ]
 
 const TITLES: Record<Route, string> = {
