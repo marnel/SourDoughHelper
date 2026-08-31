@@ -10,6 +10,7 @@
  */
 
 import { getRatio } from './ratios'
+import { REFERENCE_LEVAIN_PCT, inoculationShiftMin } from './inoculation'
 import { KEYS } from './storage'
 import { createStore } from './stores'
 import { fermentFactor } from './temperature'
@@ -104,6 +105,8 @@ export interface ScheduledStep {
   parent?: StepKey
   /** Set when the step's duration was stretched or squeezed by temperature. */
   tempAdjusted: boolean
+  /** Set when the levain percentage moved this step's duration. */
+  levainAdjusted: boolean
   /** Minutes added (or removed) by a mid-bake adjustment. */
   adjustedMin: number
 }
@@ -124,6 +127,12 @@ interface StepSpec {
   timer: boolean
   /** Scale by the temperature factor. */
   scales: boolean
+  /**
+   * Shift by the dough's inoculation. True only for fermentation *of the
+   * dough* — not the levain build, whose speed comes from its own feeding
+   * ratio, and not the bench rest, which is dough relaxing rather than rising.
+   */
+  inoculated?: boolean
   /**
    * Run inside the tail of the previous step instead of after it — this is how
    * the oven preheats while the dough is still in the fridge.
@@ -149,6 +158,11 @@ export interface ScheduleRequest {
   anchor: AnchorKind
   anchorAt: Date
   adjustments?: Adjustments
+  /**
+   * Levain as a percentage of total flour, from the recipe. Defaults to the
+   * reference, so callers that do not care get the authored durations.
+   */
+  levainPct?: number
 }
 
 export function buildSchedule({
@@ -158,8 +172,10 @@ export function buildSchedule({
   anchor,
   anchorAt,
   adjustments = {},
+  levainPct = REFERENCE_LEVAIN_PCT,
 }: ScheduleRequest): Schedule {
   const factor = fermentFactor(tempC)
+  const inoculationShift = inoculationShiftMin(levainPct)
   const ratio = getRatio(ratioId)
   const warnings: string[] = []
 
@@ -201,6 +217,7 @@ export function buildSchedule({
       durationMin: plan.bulkHours * 60,
       timer: true,
       scales: true,
+      inoculated: true,
     },
     {
       key: 'preshape',
@@ -237,6 +254,7 @@ export function buildSchedule({
       durationMin: plan.finalProofHours * 60,
       timer: true,
       scales: true,
+      inoculated: true,
       // The same-day alternative to a cold retard.
       include: plan.retardHours <= 0,
     },
@@ -301,7 +319,12 @@ export function buildSchedule({
 
   for (const spec of specs) {
     if (spec.include === false) continue
-    const base = spec.scales ? scaled(spec.durationMin) : spec.durationMin
+    // Inoculation shifts the authored duration first, since a generation is
+    // itself shorter in a warm kitchen; temperature then scales the result.
+    const inoculated = spec.inoculated
+      ? Math.max(30, spec.durationMin + inoculationShift)
+      : spec.durationMin
+    const base = spec.scales ? scaled(inoculated) : inoculated
     const adjustment = adjustments[spec.key] ?? 0
     const duration = Math.max(0, base + adjustment)
 
@@ -324,7 +347,8 @@ export function buildSchedule({
       detail: spec.detail,
       durationMin: duration,
       timer: spec.timer,
-      tempAdjusted: spec.scales && base !== spec.durationMin,
+      tempAdjusted: spec.scales && base !== inoculated,
+      levainAdjusted: Boolean(spec.inoculated) && inoculated !== spec.durationMin,
       adjustedMin: adjustment,
       startMin,
       endMin,
@@ -346,6 +370,7 @@ export function buildSchedule({
           durationMin: 3,
           timer: false,
           tempAdjusted: gap !== plan.foldIntervalMin,
+          levainAdjusted: false,
           adjustedMin: 0,
           parent: 'bulk',
           startMin: at,

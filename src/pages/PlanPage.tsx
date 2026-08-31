@@ -26,6 +26,7 @@ import {
   type ScheduledStep,
   type StepKey,
 } from '../lib/schedule'
+import { recipeStore } from '../lib/recipe'
 import { setPrefs } from '../lib/prefs'
 import {
   adjustStep,
@@ -57,6 +58,7 @@ export function PlanPage() {
   const now = useNow(30_000)
   const { tempUnit, ratioId, tempC } = usePrefs()
   const plan = useStore(planStore)
+  const recipe = useStore(recipeStore)
   const [anchor, setAnchor] = usePersisted<AnchorState>(
     KEYS.anchor,
     defaultAnchor(),
@@ -75,8 +77,9 @@ export function PlanPage() {
         anchor: bake ? 'feed-starter' : anchor.kind,
         anchorAt: new Date(bake ? bake.startedAt : anchor.at),
         adjustments: bake?.adjustments,
+        levainPct: recipe.levainPct,
       }),
-    [plan, ratioId, tempC, bake, anchor.kind, anchor.at],
+    [plan, ratioId, tempC, bake, anchor.kind, anchor.at, recipe.levainPct],
   )
 
   const active = currentStep(schedule, now)
@@ -358,6 +361,14 @@ export function PlanPage() {
                             title="Adjusted for your kitchen temperature"
                           >
                             temp
+                          </span>
+                        ) : null}
+                        {step.levainAdjusted ? (
+                          <span
+                            className="badge"
+                            title={`Adjusted for a ${recipe.levainPct}% levain`}
+                          >
+                            levain
                           </span>
                         ) : null}
                       </h4>

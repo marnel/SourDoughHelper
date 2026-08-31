@@ -2,28 +2,30 @@ import { useMemo } from 'react'
 import { Card, Details, Slider, Stepper } from '../components/Controls'
 import { usePersisted, usePrefs, useStore } from '../hooks'
 import { fmtDuration } from '../lib/format'
-import { REFERENCE_C, formatTemp } from '../lib/temperature'
+import { formatTemp } from '../lib/temperature'
 import { RATIOS, getRatio } from '../lib/ratios'
 import {
-  DEFAULT_RECIPE,
   computeRecipe,
   grams,
   pct,
   perLoaf,
+  recipeStore,
   type RecipeInput,
 } from '../lib/recipe'
+import {
+  REFERENCE_LEVAIN_PCT,
+  inoculationShiftMin,
+  levainAdvice,
+} from '../lib/inoculation'
 import { setPrefs } from '../lib/prefs'
 import { KEYS } from '../lib/storage'
 import { buildSchedule, planStore } from '../lib/schedule'
 
-interface RecipeState extends RecipeInput {
-  loaves: number
-}
-
-const DEFAULT_STATE: RecipeState = { ...DEFAULT_RECIPE, loaves: 1 }
-
 export function MethodPage() {
-  const [r, setR] = usePersisted<RecipeState>(KEYS.recipe, DEFAULT_STATE)
+  const r = useStore(recipeStore)
+  // Loaf count only affects how the finished dough is divided, so it stays
+  // local rather than joining the shared formula.
+  const [loaves, setLoaves] = usePersisted<number>(KEYS.loaves, 1)
   const { tempUnit, ratioId, tempC } = usePrefs()
   // Read-only: the method text and its durations come from the saved plan, so
   // this page always agrees with the Plan tab.
@@ -34,7 +36,8 @@ export function MethodPage() {
     [r, ratioId, tempUnit],
   )
   const ratio = getRatio(ratioId)
-  const patch = (p: Partial<RecipeState>) => setR((prev) => ({ ...prev, ...p }))
+  const patch = (p: Partial<RecipeInput>) =>
+    recipeStore.set((prev) => ({ ...prev, ...p }))
 
   // Durations only — anchored anywhere, since this page shows lengths not clocks.
   const steps = useMemo(
@@ -45,9 +48,14 @@ export function MethodPage() {
         tempC,
         anchor: 'feed-starter',
         anchorAt: new Date(),
+        levainPct: r.levainPct,
       }).steps,
-    [plan, ratioId, tempC],
+    [plan, ratioId, tempC, r.levainPct],
   )
+
+  // The same numbers the planner will use, so the two tabs cannot disagree.
+  const bulkMinutes = steps.find((s) => s.key === 'bulk')?.durationMin ?? 0
+  const shiftMin = inoculationShiftMin(r.levainPct)
 
   return (
     <div className="page">
@@ -102,13 +110,32 @@ export function MethodPage() {
           display={`${r.levainPct}%`}
           onChange={(levainPct) => patch({ levainPct })}
           hint={
-            r.levainPct <= 12
-              ? 'A small levain means a long, flavourful bulk. Plan for extra hours.'
-              : r.levainPct >= 28
-                ? 'A large levain ferments fast and tastes more sour. Shorten bulk accordingly.'
-                : '15–25% is the everyday range.'
+            <>
+              <strong>{levainAdvice(r.levainPct).label}.</strong>{' '}
+              {levainAdvice(r.levainPct).note}
+            </>
           }
         />
+
+        {/*
+          The bulk time here is not advice to go and change a slider — the
+          planner already accounts for this percentage. Showing it makes the
+          connection between the two tabs visible.
+        */}
+        <p className="advice">
+          At {r.levainPct}% the bulk works out to{' '}
+          <strong>{fmtDuration(bulkMinutes)}</strong> in a{' '}
+          {formatTemp(tempC, tempUnit)} kitchen
+          {shiftMin !== 0 ? (
+            <>
+              {' '}
+              — {fmtDuration(Math.abs(shiftMin))}{' '}
+              {shiftMin > 0 ? 'longer' : 'shorter'} than at{' '}
+              {REFERENCE_LEVAIN_PCT}%
+            </>
+          ) : null}
+          . The Plan tab schedules around it.
+        </p>
 
         <div className="field">
           <div className="field-head">Levain built at</div>
@@ -134,11 +161,11 @@ export function MethodPage() {
 
         <Stepper
           label="Split into"
-          value={r.loaves}
+          value={loaves}
           min={1}
           max={6}
           format={(v) => (v === 1 ? '1 loaf' : `${v} loaves`)}
-          onChange={(loaves) => patch({ loaves })}
+          onChange={setLoaves}
         />
 
         <div className="mix-table">
@@ -160,10 +187,10 @@ export function MethodPage() {
             <span>Total dough</span>
             <strong>{grams(recipe.totalDough)}</strong>
           </div>
-          {r.loaves > 1 ? (
+          {loaves > 1 ? (
             <div className="mix-row">
               <span>Per loaf</span>
-              <strong>{grams(perLoaf(recipe.totalDough, r.loaves))}</strong>
+              <strong>{grams(perLoaf(recipe.totalDough, loaves))}</strong>
             </div>
           ) : null}
         </div>
@@ -177,7 +204,7 @@ export function MethodPage() {
         ) : null}
 
         <p className="hint">
-          A {grams(perLoaf(recipe.totalDough, r.loaves))} loaf suits a standard
+          A {grams(perLoaf(recipe.totalDough, loaves))} loaf suits a standard
           Dutch oven or a 1 kg banneton. Around 900 g of dough is the classic
           bakery boule.
         </p>
@@ -185,7 +212,7 @@ export function MethodPage() {
 
       <Card
         title="Method"
-        subtitle={`Durations follow your saved plan — ${ratio.label} levain, ${fmtDuration(plan.bulkHours * 60)} bulk at ${formatTemp(REFERENCE_C, tempUnit)}.`}
+        subtitle={`${ratio.label} levain, ${r.levainPct}% of the flour, ${fmtDuration(bulkMinutes)} bulk at ${formatTemp(tempC, tempUnit)}.`}
       >
         <ol className="method">
           {steps

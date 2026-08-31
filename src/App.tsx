@@ -10,6 +10,7 @@ import {
 import { fmtCountdown } from './lib/format'
 import { bakeStore, bakeTimersFor } from './lib/bake'
 import { buildSchedule, planStore } from './lib/schedule'
+import { recipeStore } from './lib/recipe'
 import { isFinished, remaining, replaceBakeTimers, startClock } from './lib/timers'
 import { primeAudio } from './lib/notify'
 import { initTheme } from './lib/prefs'
@@ -50,6 +51,7 @@ export default function App() {
   const prefs = usePrefs()
   const plan = useStore(planStore)
   const bake = useStore(bakeStore)
+  const recipe = useStore(recipeStore)
   const [install, setInstall] = useState<InstallPromptEvent | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Re-render on an OS light/dark flip so the swatch previews follow along.
@@ -81,9 +83,10 @@ export default function App() {
             anchor: 'feed-starter',
             anchorAt: new Date(bake.startedAt),
             adjustments: bake.adjustments,
+            levainPct: recipe.levainPct,
           })
         : null,
-    [bake, plan, prefs.ratioId, prefs.tempC],
+    [bake, plan, prefs.ratioId, prefs.tempC, recipe.levainPct],
   )
 
   useEffect(() => {

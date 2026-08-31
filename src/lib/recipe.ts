@@ -14,6 +14,8 @@
  */
 
 import { getRatio, levainComposition } from './ratios'
+import { KEYS } from './storage'
+import { createStore } from './stores'
 import { REFERENCE_C, formatTemp, type TempUnit } from './temperature'
 
 export interface RecipeInput {
@@ -50,6 +52,12 @@ export const DEFAULT_RECIPE: RecipeInput = {
   saltPct: 2,
   levainPct: 20,
 }
+
+/**
+ * Shared: the Method tab edits the formula, and the planner needs its levain
+ * percentage to time the bulk.
+ */
+export const recipeStore = createStore<RecipeInput>(KEYS.recipe, DEFAULT_RECIPE)
 
 export function computeRecipe(
   input: RecipeInput,

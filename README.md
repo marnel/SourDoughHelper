@@ -30,7 +30,7 @@ npm run check     # typecheck + tests, what to run before pushing
 
 ## Tests
 
-119 tests over the logic in `src/lib`, run with Vitest. There are no component
+134 tests over the logic in `src/lib`, run with Vitest. There are no component
 tests: the pages are thin, and everything that can be quietly wrong — the
 schedule engine, baker's percentages, temperature scaling, the timer store — is
 a pure function that can be tested directly.
@@ -48,6 +48,7 @@ the suite went red:
 | Mid-bake adjustments ignored | 7 |
 | Re-arming wipes manual timers | 2 |
 | Temperature scaling applied to the oven | 1 |
+| Recipe decoupled from the schedule again | 5 |
 
 A test that cannot fail is worth nothing, so it is worth re-running that check
 when adding tests to this suite.
@@ -74,6 +75,7 @@ src/
     schedule.ts     Step chain → timeline; forward and backward planning
     recipe.ts       Baker's percentages, including levain flour and water
     temperature.ts  Q10 fermentation scaling, unit conversion
+    inoculation.ts  How levain percentage shifts fermentation time
     bake.ts         A bake in progress: pinned start + per-step adjustments
     timers.ts       Timer store, persisted as absolute timestamps
     notify.ts       Notifications, chime, vibration, wake lock
@@ -151,6 +153,27 @@ So 1000 g flour at 75% hydration with a 20% 100%-hydration levain means you
 weigh out 900 g flour and 650 g water, because the levain already brought 100 g
 of each. This is why "75% hydration" means the same thing regardless of how big
 your levain is.
+
+**The recipe drives the schedule.** How much levain you use changes how long
+the dough takes, so `buildSchedule` takes `levainPct` and shifts the bulk and
+the room-temperature final proof by it. The model is a population one, not a
+fudge factor: yeast grows exponentially, so halving the levain costs exactly
+one doubling — about 90 minutes at 24 °C — wherever you halve from.
+
+    minutes = base + 90 × log2(20 / levainPct)
+
+A naive "double the levain, halve the time" rule would predict a 2.5 hour bulk
+at 40% instead of 3.5, which is wrong enough to ruin a loaf. The shift is
+computed at 24 °C and the temperature factor applied afterwards, because a
+generation is itself shorter in a warm kitchen.
+
+It does not touch the levain build — that speed comes from the feeding ratio,
+not from how much of the levain ends up in the dough — nor the bench rest,
+which is dough relaxing rather than rising, nor anything in the fridge or the
+oven. Hydration is deliberately not modelled: wetter dough does ferment
+slightly faster, but the effect is small next to temperature and inoculation,
+and a coefficient invented for it would add false precision rather than
+accuracy.
 
 **Planning and baking need different anchors.** While planning you work
 backwards from a target and the start time falls out of it. Once the dough is

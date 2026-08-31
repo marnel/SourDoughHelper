@@ -264,6 +264,75 @@ describe('mid-bake adjustments', () => {
   })
 })
 
+/*
+ * Gap #1: the recipe used to have no effect on the schedule at all, so the
+ * Method tab told you to "plan for extra hours" while the planner kept
+ * confidently scheduling a five-hour bulk and setting timers to match.
+ */
+describe('levain percentage drives the dough fermentation', () => {
+  it('leaves the authored durations alone at the reference percentage', () => {
+    const base = build()
+    const ref = build({ levainPct: 20 })
+    expect(step(ref, 'bulk').durationMin).toBe(step(base, 'bulk').durationMin)
+  })
+
+  it('lengthens bulk for a small levain and shortens it for a large one', () => {
+    const small = build({ levainPct: 10 })
+    const standard = build({ levainPct: 20 })
+    const large = build({ levainPct: 40 })
+    expect(step(small, 'bulk').durationMin).toBe(
+      step(standard, 'bulk').durationMin + 90,
+    )
+    expect(step(large, 'bulk').durationMin).toBe(
+      step(standard, 'bulk').durationMin - 90,
+    )
+  })
+
+  it('moves the whole schedule with it', () => {
+    const standard = build({ levainPct: 20 })
+    const small = build({ levainPct: 10 })
+    expect(small.totalMs).toBe(standard.totalMs + 90 * MIN)
+  })
+
+  it('applies to the room-temperature final proof too', () => {
+    const standard = build({ levainPct: 20 }, { retardHours: 0 })
+    const small = build({ levainPct: 10 }, { retardHours: 0 })
+    expect(step(small, 'proof').durationMin).toBe(
+      step(standard, 'proof').durationMin + 90,
+    )
+  })
+
+  /*
+   * The levain build's own speed comes from its feeding ratio, not from how
+   * much of it ends up in the dough. Bench rest is dough relaxing, not rising.
+   */
+  it('does not touch the levain build, bench rest, retard or bake', () => {
+    const standard = build({ levainPct: 20 })
+    const small = build({ levainPct: 10 })
+    for (const key of ['levain', 'bench', 'retard', 'bakeLidOn', 'cool'] as StepKey[]) {
+      expect(step(small, key).durationMin).toBe(step(standard, key).durationMin)
+    }
+  })
+
+  it('compounds with temperature rather than replacing it', () => {
+    // 10% levain adds 90 min at 24 °C; 14 °C then doubles the whole thing.
+    const cold = build({ levainPct: 10, tempC: 14 })
+    expect(step(cold, 'bulk').durationMin).toBe((300 + 90) * 2)
+  })
+
+  it('flags which steps the levain moved', () => {
+    const small = build({ levainPct: 10 })
+    expect(step(small, 'bulk').levainAdjusted).toBe(true)
+    expect(step(small, 'levain').levainAdjusted).toBe(false)
+    expect(step(build({ levainPct: 20 }), 'bulk').levainAdjusted).toBe(false)
+  })
+
+  it('never collapses bulk below a sane floor', () => {
+    const s = build({ levainPct: 40 }, { bulkHours: 0.5 })
+    expect(step(s, 'bulk').durationMin).toBeGreaterThanOrEqual(30)
+  })
+})
+
 describe('ratio drives the levain build', () => {
   it('gives a bigger feed a longer build and a later finish', () => {
     const fast = build({ ratioId: '1-1-1' })
