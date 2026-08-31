@@ -18,7 +18,7 @@ describe('computeRecipe', () => {
       { totalFlour: 1000, hydrationPct: 75, saltPct: 2, levainPct: 20 },
       '1-2-2',
     )
-    expect(at(r, 'Flour').grams).toBeCloseTo(900, 6)
+    expect(at(r, 'White flour').grams).toBeCloseTo(900, 6)
     expect(at(r, 'Water').grams).toBeCloseTo(650, 6)
     expect(at(r, 'Levain').grams).toBeCloseTo(200, 6)
     expect(at(r, 'Salt').grams).toBeCloseTo(20, 6)
@@ -33,7 +33,7 @@ describe('computeRecipe', () => {
       )
       const levainFlour = at(r, 'Levain').grams / 2 // 100% hydration
       const levainWater = at(r, 'Levain').grams / 2
-      expect(at(r, 'Flour').grams + levainFlour).toBeCloseTo(1000, 6)
+      expect(at(r, 'White flour').grams + levainFlour).toBeCloseTo(1000, 6)
       expect(at(r, 'Water').grams + levainWater).toBeCloseTo(750, 6)
       expect(r.actualHydrationPct).toBeCloseTo(75, 6)
     }
@@ -52,11 +52,68 @@ describe('computeRecipe', () => {
       { totalFlour: 1000, hydrationPct: 75, saltPct: 2, levainPct: 20 },
       'stiff-1-2-1',
     )
-    expect(at(stiff, 'Flour').grams).toBeLessThan(at(loose, 'Flour').grams)
+    expect(at(stiff, 'White flour').grams).toBeLessThan(at(loose, 'White flour').grams)
     expect(at(stiff, 'Water').grams).toBeGreaterThan(at(loose, 'Water').grams)
     // Same dough weight either way, just divided differently.
     expect(stiff.totalDough).toBeCloseTo(loose.totalDough, 6)
-    expect(at(stiff, 'Flour').grams).toBeCloseTo(1000 - 200 / 1.5, 6)
+    expect(at(stiff, 'White flour').grams).toBeCloseTo(1000 - 200 / 1.5, 6)
+  })
+
+  describe('flour blend', () => {
+    const blended = (wholemealPct: number, ryePct: number) =>
+      computeRecipe(
+        {
+          totalFlour: 1000,
+          hydrationPct: 75,
+          saltPct: 2,
+          levainPct: 20,
+          wholemealPct,
+          ryePct,
+        },
+        '1-2-2',
+      )
+
+    it('shows only the flours actually used', () => {
+      expect(blended(0, 0).lines.map((l) => l.name)).not.toContain('Rye')
+      expect(blended(20, 10).lines.map((l) => l.name)).toContain('Rye')
+    })
+
+    it('splits the flour you weigh out across the blend', () => {
+      const r = blended(20, 10)
+      // 1000 g total: 700 white, 200 wholemeal, 100 rye — less the levain's
+      // 100 g of flour, which comes off the white.
+      expect(at(r, 'White flour').grams).toBeCloseTo(600, 6)
+      expect(at(r, 'Wholemeal').grams).toBeCloseTo(200, 6)
+      expect(at(r, 'Rye').grams).toBeCloseTo(100, 6)
+    })
+
+    it('still totals the target flour once the levain is counted', () => {
+      for (const [w, y] of [[0, 0], [20, 10], [50, 0], [0, 40]]) {
+        const r = blended(w!, y!)
+        const flour = r.lines
+          .filter((l) => /flour|Wholemeal|Rye/i.test(l.name))
+          .filter((l) => !l.name.startsWith('Levain'))
+          .reduce((a, l) => a + l.grams, 0)
+        expect(flour + 100).toBeCloseTo(1000, 6) // levain carries 100 g flour
+      }
+    })
+
+    /*
+     * A starter is nearly always fed white, so the levain's flour comes off
+     * the white first and only spills into wholegrain when the white runs out.
+     */
+    it('spills into wholegrain only when there is not enough white', () => {
+      const r = blended(100, 0)
+      expect(at(r, 'Wholemeal').grams).toBeCloseTo(900, 6)
+      expect(r.lines.map((l) => l.name)).not.toContain('White flour')
+    })
+
+    it('leaves water, salt and total dough unchanged', () => {
+      const white = blended(0, 0)
+      const brown = blended(30, 10)
+      expect(brown.totalDough).toBeCloseTo(white.totalDough, 6)
+      expect(at(brown, 'Water').grams).toBeCloseTo(at(white, 'Water').grams, 6)
+    })
   })
 
   it('scales linearly with batch size', () => {

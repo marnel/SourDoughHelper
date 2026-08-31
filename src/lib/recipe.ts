@@ -13,6 +13,7 @@
  *   salt         = 20 g
  */
 
+import { DEFAULT_BLEND, fractions, type FlourBlend } from './flour'
 import { getRatio, levainComposition } from './ratios'
 import { KEYS } from './storage'
 import { createStore } from './stores'
@@ -27,6 +28,10 @@ export interface RecipeInput {
   saltPct: number
   /** Levain as a percentage of total flour. */
   levainPct: number
+  /** Percentage of total flour that is wholemeal. Optional; defaults to none. */
+  wholemealPct?: number
+  /** Percentage of total flour that is rye. Optional; defaults to none. */
+  ryePct?: number
 }
 
 export interface RecipeLine {
@@ -51,6 +56,8 @@ export const DEFAULT_RECIPE: RecipeInput = {
   hydrationPct: 75,
   saltPct: 2,
   levainPct: 20,
+  wholemealPct: 0,
+  ryePct: 0,
 }
 
 /**
@@ -67,6 +74,10 @@ export function computeRecipe(
 ): Recipe {
   const { totalFlour, hydrationPct, saltPct, levainPct } = input
   const ratio = getRatio(ratioId)
+  const blend: FlourBlend = {
+    wholemealPct: input.wholemealPct ?? DEFAULT_BLEND.wholemealPct,
+    ryePct: input.ryePct ?? DEFAULT_BLEND.ryePct,
+  }
 
   const levainWeight = totalFlour * (levainPct / 100)
   const levain = levainComposition(ratio, levainWeight)
@@ -78,12 +89,7 @@ export function computeRecipe(
   const waterToAdd = totalWater - levain.water
 
   const lines: RecipeLine[] = [
-    {
-      name: 'Flour',
-      grams: flourToAdd,
-      pct: (flourToAdd / totalFlour) * 100,
-      note: 'Bread flour, or up to 20% wholemeal or rye',
-    },
+    ...flourLines(totalFlour, flourToAdd, blend),
     {
       name: 'Water',
       grams: waterToAdd,
@@ -143,6 +149,51 @@ export function computeRecipe(
  */
 export function perLoaf(totalDough: number, loaves: number): number {
   return loaves > 0 ? totalDough / loaves : totalDough
+}
+
+/**
+ * Split the flour you weigh out across the blend.
+ *
+ * The blend describes *total* flour, but the levain has already supplied some.
+ * That contribution is taken off the white first, since a starter is almost
+ * always fed white, and only spills into the wholegrain if the white runs out.
+ */
+function flourLines(
+  totalFlour: number,
+  flourToAdd: number,
+  blend: FlourBlend,
+): RecipeLine[] {
+  const f = fractions(blend)
+  const target = {
+    white: totalFlour * f.white,
+    wholemeal: totalFlour * f.wholemeal,
+    rye: totalFlour * f.rye,
+  }
+
+  const fromLevain = Math.max(0, totalFlour - flourToAdd)
+  const whiteTaken = Math.min(target.white, fromLevain)
+  let spill = fromLevain - whiteTaken
+  const wholemealTaken = Math.min(target.wholemeal, spill)
+  spill -= wholemealTaken
+
+  const amounts = {
+    white: target.white - whiteTaken,
+    wholemeal: target.wholemeal - wholemealTaken,
+    rye: Math.max(0, target.rye - spill),
+  }
+
+  const line = (name: string, grams: number, note: string): RecipeLine => ({
+    name,
+    grams,
+    pct: (grams / totalFlour) * 100,
+    note,
+  })
+
+  return [
+    line('White flour', amounts.white, 'Strong white bread flour'),
+    line('Wholemeal', amounts.wholemeal, 'Wholewheat, stoneground if you have it'),
+    line('Rye', amounts.rye, 'Wholegrain or light rye'),
+  ].filter((l) => l.grams > 0.05)
 }
 
 const round = (n: number): number => Math.round(n)

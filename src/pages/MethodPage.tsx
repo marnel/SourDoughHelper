@@ -17,6 +17,13 @@ import {
   inoculationShiftMin,
   levainAdvice,
 } from '../lib/inoculation'
+import {
+  absorptionBonus,
+  blendAdvice,
+  totalWholegrainPct,
+  whitePct,
+  type FlourBlend,
+} from '../lib/flour'
 import { setPrefs } from '../lib/prefs'
 import { KEYS } from '../lib/storage'
 import { buildSchedule, planStore } from '../lib/schedule'
@@ -49,9 +56,17 @@ export function MethodPage() {
         anchor: 'feed-starter',
         anchorAt: new Date(),
         levainPct: r.levainPct,
+        blend: { wholemealPct: r.wholemealPct ?? 0, ryePct: r.ryePct ?? 0 },
       }).steps,
-    [plan, ratioId, tempC, r.levainPct],
+    [plan, ratioId, tempC, r.levainPct, r.wholemealPct, r.ryePct],
   )
+
+  const blend: FlourBlend = {
+    wholemealPct: r.wholemealPct ?? 0,
+    ryePct: r.ryePct ?? 0,
+  }
+  const wholegrain = totalWholegrainPct(blend)
+  const absorb = absorptionBonus(blend)
 
   // The same numbers the planner will use, so the two tabs cannot disagree.
   const bulkMinutes = steps.find((s) => s.key === 'bulk')?.durationMin ?? 0
@@ -74,6 +89,36 @@ export function MethodPage() {
           hint="Includes the flour inside your levain, which is why the flour you weigh out below is a little less."
         />
 
+        {/*
+          Two sliders rather than three: white is whatever is left, so the
+          blend is always valid and there is nothing to coax into summing to
+          100.
+        */}
+        <Slider
+          label="Wholemeal"
+          value={blend.wholemealPct}
+          min={0}
+          max={100 - blend.ryePct}
+          display={`${blend.wholemealPct}%`}
+          onChange={(wholemealPct) => patch({ wholemealPct })}
+        />
+        <Slider
+          label="Rye"
+          value={blend.ryePct}
+          min={0}
+          max={100 - blend.wholemealPct}
+          display={`${blend.ryePct}%`}
+          onChange={(ryePct) => patch({ ryePct })}
+          hint={
+            <>
+              The rest is white bread flour — <strong>{whitePct(blend)}%</strong>
+              . <strong>{blendAdvice(blend).label}.</strong>{' '}
+              {blendAdvice(blend).note}
+            </>
+          }
+        />
+
+
         <Slider
           label="Hydration"
           value={r.hydrationPct}
@@ -89,6 +134,18 @@ export function MethodPage() {
                 : 'Very wet. Excellent crumb if your flour is strong and your shaping is confident.'
           }
         />
+
+        {wholegrain > 0 ? (
+          <p className="advice">
+            Wholegrain drinks more water. At {wholegrain}% wholegrain this blend
+            behaves like about{' '}
+            <strong>{Math.round(r.hydrationPct - absorb)}%</strong> would in
+            white flour, so consider{' '}
+            <strong>{Math.round(r.hydrationPct + absorb)}%</strong> hydration for
+            the same feel. It also ferments faster — the bulk below already
+            accounts for that.
+          </p>
+        ) : null}
 
         <Slider
           label="Salt"

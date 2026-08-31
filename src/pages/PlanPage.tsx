@@ -78,8 +78,22 @@ export function PlanPage() {
         anchorAt: new Date(bake ? bake.startedAt : anchor.at),
         adjustments: bake?.adjustments,
         levainPct: recipe.levainPct,
+        blend: {
+          wholemealPct: recipe.wholemealPct ?? 0,
+          ryePct: recipe.ryePct ?? 0,
+        },
       }),
-    [plan, ratioId, tempC, bake, anchor.kind, anchor.at, recipe.levainPct],
+    [
+      plan,
+      ratioId,
+      tempC,
+      bake,
+      anchor.kind,
+      anchor.at,
+      recipe.levainPct,
+      recipe.wholemealPct,
+      recipe.ryePct,
+    ],
   )
 
   const active = currentStep(schedule, now)
@@ -369,6 +383,14 @@ export function PlanPage() {
                             title={`Adjusted for a ${recipe.levainPct}% levain`}
                           >
                             levain
+                          </span>
+                        ) : null}
+                        {step.flourAdjusted ? (
+                          <span
+                            className="badge"
+                            title="Wholegrain ferments faster than white"
+                          >
+                            flour
                           </span>
                         ) : null}
                       </h4>

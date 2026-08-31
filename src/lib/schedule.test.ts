@@ -333,6 +333,67 @@ describe('levain percentage drives the dough fermentation', () => {
   })
 })
 
+describe('flour blend drives the dough fermentation', () => {
+  it('leaves an all-white dough at the authored duration', () => {
+    const white = build({ blend: { wholemealPct: 0, ryePct: 0 } })
+    expect(step(white, 'bulk').durationMin).toBe(step(build(), 'bulk').durationMin)
+    expect(step(white, 'bulk').flourAdjusted).toBe(false)
+  })
+
+  it('shortens bulk as wholegrain goes up', () => {
+    const white = step(build(), 'bulk').durationMin
+    const some = step(build({ blend: { wholemealPct: 25, ryePct: 0 } }), 'bulk')
+      .durationMin
+    const lots = step(build({ blend: { wholemealPct: 100, ryePct: 0 } }), 'bulk')
+      .durationMin
+    expect(some).toBeLessThan(white)
+    expect(lots).toBeLessThan(some)
+  })
+
+  it('makes rye quicker than the same proportion of wholemeal', () => {
+    const wholemeal = step(
+      build({ blend: { wholemealPct: 50, ryePct: 0 } }),
+      'bulk',
+    ).durationMin
+    const rye = step(build({ blend: { wholemealPct: 0, ryePct: 50 } }), 'bulk')
+      .durationMin
+    expect(rye).toBeLessThan(wholemeal)
+  })
+
+  it('applies to the final proof as well', () => {
+    const white = step(build({}, { retardHours: 0 }), 'proof').durationMin
+    const brown = step(
+      build({ blend: { wholemealPct: 100, ryePct: 0 } }, { retardHours: 0 }),
+      'proof',
+    ).durationMin
+    expect(brown).toBeLessThan(white)
+  })
+
+  it('does not touch the levain build, bench rest, retard or bake', () => {
+    const white = build()
+    const brown = build({ blend: { wholemealPct: 100, ryePct: 0 } })
+    for (const key of ['levain', 'bench', 'retard', 'bakeLidOn', 'cool'] as StepKey[]) {
+      expect(step(brown, key).durationMin).toBe(step(white, key).durationMin)
+    }
+  })
+
+  it('compounds with levain percentage and temperature', () => {
+    // (300 base + 90 for a 10% levain) × 1/1.3 for wholemeal, × 2 at 14 °C.
+    const s = build({
+      levainPct: 10,
+      tempC: 14,
+      blend: { wholemealPct: 100, ryePct: 0 },
+    })
+    expect(step(s, 'bulk').durationMin).toBe(Math.round((300 + 90) / 1.3) * 2)
+  })
+
+  it('flags which steps the flour moved', () => {
+    const brown = build({ blend: { wholemealPct: 30, ryePct: 0 } })
+    expect(step(brown, 'bulk').flourAdjusted).toBe(true)
+    expect(step(brown, 'levain').flourAdjusted).toBe(false)
+  })
+})
+
 describe('ratio drives the levain build', () => {
   it('gives a bigger feed a longer build and a later finish', () => {
     const fast = build({ ratioId: '1-1-1' })

@@ -30,7 +30,7 @@ npm run check     # typecheck + tests, what to run before pushing
 
 ## Tests
 
-134 tests over the logic in `src/lib`, run with Vitest. There are no component
+161 tests over the logic in `src/lib`, run with Vitest. There are no component
 tests: the pages are thin, and everything that can be quietly wrong — the
 schedule engine, baker's percentages, temperature scaling, the timer store — is
 a pure function that can be tested directly.
@@ -49,6 +49,8 @@ the suite went red:
 | Re-arming wipes manual timers | 2 |
 | Temperature scaling applied to the oven | 1 |
 | Recipe decoupled from the schedule again | 5 |
+| Flour blend ignored by the schedule | 5 |
+| Flour blend dropped from the weigh-out | 3 |
 
 A test that cannot fail is worth nothing, so it is worth re-running that check
 when adding tests to this suite.
@@ -76,6 +78,7 @@ src/
     recipe.ts       Baker's percentages, including levain flour and water
     temperature.ts  Q10 fermentation scaling, unit conversion
     inoculation.ts  How levain percentage shifts fermentation time
+    flour.ts        Blends: weigh-out, absorption, fermentation speed
     bake.ts         A bake in progress: pinned start + per-step adjustments
     timers.ts       Timer store, persisted as absolute timestamps
     notify.ts       Notifications, chime, vibration, wake lock
@@ -174,6 +177,28 @@ oven. Hydration is deliberately not modelled: wetter dough does ferment
 slightly faster, but the effect is small next to temperature and inoculation,
 and a coefficient invented for it would add false precision rather than
 accuracy.
+
+**Wholegrain is three separate effects, modelled separately.** A blend is two
+numbers — wholemeal and rye as percentages of total flour — with white as the
+remainder, so the blend is always valid and there are no sliders to coax into
+summing to 100. From that:
+
+- **What you weigh out.** The blend describes *total* flour, but the levain has
+  already supplied some. That comes off the white first, since a starter is
+  nearly always fed white, and spills into wholegrain only if the white runs
+  out.
+- **Absorption.** Bran and germ hold much more water than endosperm, so the
+  same hydration number gives a stiffer dough. This is surfaced as advice and
+  never applied automatically: hydration is a definition — water over flour —
+  and silently rewriting the number the baker typed would be worse than saying
+  nothing.
+- **Fermentation speed.** Wholegrain carries more of the minerals, enzymes and
+  microbes fermentation runs on. Modelled as a rate per flour (white 1.0,
+  wholemeal 1.3, rye 1.45), blended by proportion and inverted to a time
+  factor, so a full wholewheat dough runs about a quarter quicker.
+
+The three modifiers compose in a fixed order: inoculation shifts the authored
+duration, the flour factor scales it, and temperature scales the result last.
 
 **Planning and baking need different anchors.** While planning you work
 backwards from a target and the start time falls out of it. Once the dough is

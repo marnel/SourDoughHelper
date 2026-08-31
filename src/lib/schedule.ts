@@ -10,6 +10,7 @@
  */
 
 import { getRatio } from './ratios'
+import { DEFAULT_BLEND, flourTimeFactor, type FlourBlend } from './flour'
 import { REFERENCE_LEVAIN_PCT, inoculationShiftMin } from './inoculation'
 import { KEYS } from './storage'
 import { createStore } from './stores'
@@ -107,6 +108,8 @@ export interface ScheduledStep {
   tempAdjusted: boolean
   /** Set when the levain percentage moved this step's duration. */
   levainAdjusted: boolean
+  /** Set when the flour blend moved this step's duration. */
+  flourAdjusted: boolean
   /** Minutes added (or removed) by a mid-bake adjustment. */
   adjustedMin: number
 }
@@ -163,6 +166,8 @@ export interface ScheduleRequest {
    * reference, so callers that do not care get the authored durations.
    */
   levainPct?: number
+  /** Flour blend from the recipe. Defaults to all white. */
+  blend?: FlourBlend
 }
 
 export function buildSchedule({
@@ -173,9 +178,11 @@ export function buildSchedule({
   anchorAt,
   adjustments = {},
   levainPct = REFERENCE_LEVAIN_PCT,
+  blend = DEFAULT_BLEND,
 }: ScheduleRequest): Schedule {
   const factor = fermentFactor(tempC)
   const inoculationShift = inoculationShiftMin(levainPct)
+  const flourFactor = flourTimeFactor(blend)
   const ratio = getRatio(ratioId)
   const warnings: string[] = []
 
@@ -321,8 +328,10 @@ export function buildSchedule({
     if (spec.include === false) continue
     // Inoculation shifts the authored duration first, since a generation is
     // itself shorter in a warm kitchen; temperature then scales the result.
+    // Inoculation and flour both act on the authored 24 °C duration; the
+    // temperature factor then scales whatever they produced.
     const inoculated = spec.inoculated
-      ? Math.max(30, spec.durationMin + inoculationShift)
+      ? Math.max(30, Math.round((spec.durationMin + inoculationShift) * flourFactor))
       : spec.durationMin
     const base = spec.scales ? scaled(inoculated) : inoculated
     const adjustment = adjustments[spec.key] ?? 0
@@ -348,7 +357,9 @@ export function buildSchedule({
       durationMin: duration,
       timer: spec.timer,
       tempAdjusted: spec.scales && base !== inoculated,
-      levainAdjusted: Boolean(spec.inoculated) && inoculated !== spec.durationMin,
+      levainAdjusted:
+        Boolean(spec.inoculated) && inoculationShift !== 0,
+      flourAdjusted: Boolean(spec.inoculated) && flourFactor !== 1,
       adjustedMin: adjustment,
       startMin,
       endMin,
@@ -371,6 +382,7 @@ export function buildSchedule({
           timer: false,
           tempAdjusted: gap !== plan.foldIntervalMin,
           levainAdjusted: false,
+          flourAdjusted: false,
           adjustedMin: 0,
           parent: 'bulk',
           startMin: at,

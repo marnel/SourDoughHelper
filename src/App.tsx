@@ -84,9 +84,21 @@ export default function App() {
             anchorAt: new Date(bake.startedAt),
             adjustments: bake.adjustments,
             levainPct: recipe.levainPct,
+            blend: {
+              wholemealPct: recipe.wholemealPct ?? 0,
+              ryePct: recipe.ryePct ?? 0,
+            },
           })
         : null,
-    [bake, plan, prefs.ratioId, prefs.tempC, recipe.levainPct],
+    [
+      bake,
+      plan,
+      prefs.ratioId,
+      prefs.tempC,
+      recipe.levainPct,
+      recipe.wholemealPct,
+      recipe.ryePct,
+    ],
   )
 
   useEffect(() => {
