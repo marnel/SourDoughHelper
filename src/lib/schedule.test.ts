@@ -333,6 +333,45 @@ describe('levain percentage drives the dough fermentation', () => {
   })
 })
 
+describe('loaf count', () => {
+  /*
+   * The dough does not care how many pieces it becomes, but your hands do.
+   * Six loaves is closer to half an hour of shaping than ten minutes, and a
+   * plan that ignores that sends you into the fridge late.
+   */
+  it('leaves a single loaf at the authored handling times', () => {
+    const one = build({ loaves: 1 })
+    expect(step(one, 'preshape').durationMin).toBe(10)
+    expect(step(one, 'shape').durationMin).toBe(10)
+  })
+
+  it('lengthens pre-shaping and shaping for a bigger batch', () => {
+    const six = build({ loaves: 6 })
+    expect(step(six, 'preshape').durationMin).toBe(10 + 5 * 4)
+    expect(step(six, 'shape').durationMin).toBe(10 + 5 * 5)
+  })
+
+  it('pushes the rest of the day back accordingly', () => {
+    const one = build({ loaves: 1 })
+    const six = build({ loaves: 6 })
+    expect(six.totalMs - one.totalMs).toBe(45 * MIN)
+  })
+
+  it('does not touch fermentation, which happens in one bowl', () => {
+    const one = build({ loaves: 1 })
+    const six = build({ loaves: 6 })
+    for (const key of ['bulk', 'bench', 'retard', 'cool'] as StepKey[]) {
+      expect(step(six, key).durationMin).toBe(step(one, key).durationMin)
+    }
+  })
+
+  it('defaults to one loaf and ignores nonsense', () => {
+    const base = step(build(), 'shape').durationMin
+    expect(step(build({ loaves: 0 }), 'shape').durationMin).toBe(base)
+    expect(step(build({ loaves: -3 }), 'shape').durationMin).toBe(base)
+  })
+})
+
 describe('flour blend drives the dough fermentation', () => {
   it('leaves an all-white dough at the authored duration', () => {
     const white = build({ blend: { wholemealPct: 0, ryePct: 0 } })

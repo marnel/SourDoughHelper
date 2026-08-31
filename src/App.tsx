@@ -88,6 +88,7 @@ export default function App() {
               wholemealPct: recipe.wholemealPct ?? 0,
               ryePct: recipe.ryePct ?? 0,
             },
+            loaves: recipe.loaves ?? 1,
           })
         : null,
     [
@@ -98,6 +99,7 @@ export default function App() {
       recipe.levainPct,
       recipe.wholemealPct,
       recipe.ryePct,
+      recipe.loaves,
     ],
   )
 

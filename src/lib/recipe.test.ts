@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_RECIPE, computeRecipe, grams, pct, perLoaf } from './recipe'
+import {
+  DEFAULT_RECIPE,
+  computeRecipe,
+  doughWeight,
+  flourForDough,
+  grams,
+  pct,
+  perLoaf,
+} from './recipe'
 
 const at = (r: ReturnType<typeof computeRecipe>, name: string) => {
   const line = r.lines.find((l) => l.name.startsWith(name))
@@ -141,6 +149,58 @@ describe('computeRecipe', () => {
       expect(warn({ saltPct: 3 })).toMatch(/salt/i)
       expect(warn({ saltPct: 1 })).toMatch(/salt/i)
     })
+  })
+})
+
+describe('batch sizing', () => {
+  it('gives dough weight as flour plus its water and salt', () => {
+    // The levain cancels: it is flour and water already counted in the totals.
+    expect(doughWeight(1000, 75, 2)).toBeCloseTo(1770, 6)
+    expect(doughWeight(500, 80, 2)).toBeCloseTo(910, 6)
+  })
+
+  it('agrees with the full recipe calculation', () => {
+    for (const totalFlour of [250, 500, 1000, 3050]) {
+      for (const hydrationPct of [65, 75, 85]) {
+        const r = computeRecipe(
+          { ...DEFAULT_RECIPE, totalFlour, hydrationPct },
+          '1-2-2',
+        )
+        expect(doughWeight(totalFlour, hydrationPct, DEFAULT_RECIPE.saltPct))
+          .toBeCloseTo(r.totalDough, 6)
+      }
+    }
+  })
+
+  /*
+   * Sizing a batch the way bakers actually think about it — "six loaves of
+   * 900 g" — rather than reverse-engineering a flour weight to hit it.
+   */
+  it('works back from a target dough weight', () => {
+    const flour = flourForDough(6 * 900, 75, 2)
+    expect(flour).toBe(3050)
+    expect(doughWeight(flour, 75, 2) / 6).toBeCloseTo(900, 0)
+  })
+
+  it('round-trips within its rounding step', () => {
+    for (const loaves of [1, 2, 4, 6, 12]) {
+      for (const per of [400, 900, 1200]) {
+        const flour = flourForDough(loaves * per, 75, 2)
+        // Within the 5 g flour step, which is ~9 g of dough on a single loaf.
+        expect(Math.abs(doughWeight(flour, 75, 2) / loaves - per)).toBeLessThan(10)
+      }
+    }
+  })
+
+  it('rounds to a weight a scale can hit', () => {
+    for (const target of [1234, 2345, 5400, 9999]) {
+      expect(flourForDough(target, 75, 2) % 5).toBe(0)
+    }
+  })
+
+  it('never returns a nonsense weight', () => {
+    expect(flourForDough(0, 75, 2)).toBe(5)
+    expect(flourForDough(1000, -300, 0)).toBe(0)
   })
 })
 

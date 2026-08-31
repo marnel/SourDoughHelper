@@ -30,7 +30,7 @@ npm run check     # typecheck + tests, what to run before pushing
 
 ## Tests
 
-161 tests over the logic in `src/lib`, run with Vitest. There are no component
+172 tests over the logic in `src/lib`, run with Vitest. There are no component
 tests: the pages are thin, and everything that can be quietly wrong — the
 schedule engine, baker's percentages, temperature scaling, the timer store — is
 a pure function that can be tested directly.
@@ -177,6 +177,24 @@ oven. Hydration is deliberately not modelled: wetter dough does ferment
 slightly faster, but the effect is small next to temperature and inoculation,
 and a coefficient invented for it would add false precision rather than
 accuracy.
+
+**Batch size is three views of one number.** Total flour is the source of
+truth; loaf count and weight-per-loaf work back to it, so the three controls
+can never disagree. That inverse is exact because the levain cancels out of the
+dough weight — it is flour and water already counted in the totals — leaving
+`dough = flour × (1 + hydration + salt)`. Sizing a bake the way bakers actually
+think about it ("six loaves of 900 g") beats reverse-engineering a flour weight
+to hit it.
+
+Flour is rounded to 5 g rather than something tidier like 25 g. Coarser
+rounding looks neater on the slider but pushes the error onto the loaf weight,
+and with a single loaf carrying all of it, 25 g put a "900 g loaf" out by 15 g.
+
+**Loaf count changes the schedule, because handling does not happen in one
+bowl.** Pre-shaping and shaping scale with the number of pieces — six loaves is
+closer to half an hour than ten minutes — while fermentation, which does happen
+in one bowl, does not. Ignoring it sends you into the fridge three quarters of
+an hour late.
 
 **Wholegrain is three separate effects, modelled separately.** A blend is two
 numbers — wholemeal and rye as percentages of total flour — with white as the

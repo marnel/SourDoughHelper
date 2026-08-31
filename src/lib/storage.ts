@@ -54,5 +54,4 @@ export const KEYS = {
   prefs: 'prefs',
   anchor: 'anchor',
   bake: 'bake',
-  loaves: 'loaves',
 } as const

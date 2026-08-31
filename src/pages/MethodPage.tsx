@@ -1,11 +1,13 @@
 import { useMemo } from 'react'
 import { Card, Details, Slider, Stepper } from '../components/Controls'
-import { usePersisted, usePrefs, useStore } from '../hooks'
+import { usePrefs, useStore } from '../hooks'
 import { fmtDuration } from '../lib/format'
 import { formatTemp } from '../lib/temperature'
 import { RATIOS, getRatio } from '../lib/ratios'
 import {
   computeRecipe,
+  doughWeight,
+  flourForDough,
   grams,
   pct,
   perLoaf,
@@ -25,14 +27,10 @@ import {
   type FlourBlend,
 } from '../lib/flour'
 import { setPrefs } from '../lib/prefs'
-import { KEYS } from '../lib/storage'
 import { buildSchedule, planStore } from '../lib/schedule'
 
 export function MethodPage() {
   const r = useStore(recipeStore)
-  // Loaf count only affects how the finished dough is divided, so it stays
-  // local rather than joining the shared formula.
-  const [loaves, setLoaves] = usePersisted<number>(KEYS.loaves, 1)
   const { tempUnit, ratioId, tempC } = usePrefs()
   // Read-only: the method text and its durations come from the saved plan, so
   // this page always agrees with the Plan tab.
@@ -61,6 +59,25 @@ export function MethodPage() {
     [plan, ratioId, tempC, r.levainPct, r.wholemealPct, r.ryePct],
   )
 
+  const loaves = Math.max(1, r.loaves ?? 1)
+  const perLoafGrams = doughWeight(r.totalFlour, r.hydrationPct, r.saltPct) / loaves
+
+  /*
+   * Batch size is three views of one number. Total flour is the source of
+   * truth; editing loaves or the weight per loaf works back to it, so the
+   * three controls can never disagree.
+   */
+  const setLoaves = (next: number) =>
+    patch({
+      loaves: next,
+      totalFlour: flourForDough(perLoafGrams * next, r.hydrationPct, r.saltPct),
+    })
+
+  const setPerLoaf = (next: number) =>
+    patch({
+      totalFlour: flourForDough(next * loaves, r.hydrationPct, r.saltPct),
+    })
+
   const blend: FlourBlend = {
     wholemealPct: r.wholemealPct ?? 0,
     ryePct: r.ryePct ?? 0,
@@ -82,11 +99,42 @@ export function MethodPage() {
           label="Total flour"
           value={r.totalFlour}
           min={200}
-          max={2000}
-          step={50}
+          max={6000}
+          step={5}
           display={grams(r.totalFlour)}
           onChange={(totalFlour) => patch({ totalFlour })}
           hint="Includes the flour inside your levain, which is why the flour you weigh out below is a little less."
+        />
+
+        <Stepper
+          label="Loaves"
+          value={loaves}
+          min={1}
+          max={12}
+          format={(v) => (v === 1 ? '1 loaf' : `${v} loaves`)}
+          onChange={setLoaves}
+        />
+
+        <Slider
+          label="Weight per loaf"
+          value={Math.round(perLoafGrams)}
+          min={300}
+          max={1500}
+          step={25}
+          display={grams(perLoafGrams)}
+          onChange={setPerLoaf}
+          hint={
+            <>
+              {loaves === 1 ? 'One loaf' : `${loaves} loaves`} of{' '}
+              {grams(perLoafGrams)} needs{' '}
+              <strong>{grams(r.totalFlour)}</strong> of flour and makes{' '}
+              <strong>
+                {grams(doughWeight(r.totalFlour, r.hydrationPct, r.saltPct))}
+              </strong>{' '}
+              of dough. Around 900 g a loaf suits a standard Dutch oven or a 1 kg
+              banneton.
+            </>
+          }
         />
 
         {/*
@@ -216,14 +264,6 @@ export function MethodPage() {
           </p>
         </div>
 
-        <Stepper
-          label="Split into"
-          value={loaves}
-          min={1}
-          max={6}
-          format={(v) => (v === 1 ? '1 loaf' : `${v} loaves`)}
-          onChange={setLoaves}
-        />
 
         <div className="mix-table">
           {recipe.lines.map((line) => (
@@ -260,11 +300,6 @@ export function MethodPage() {
           </ul>
         ) : null}
 
-        <p className="hint">
-          A {grams(perLoaf(recipe.totalDough, loaves))} loaf suits a standard
-          Dutch oven or a 1 kg banneton. Around 900 g of dough is the classic
-          bakery boule.
-        </p>
       </Card>
 
       <Card

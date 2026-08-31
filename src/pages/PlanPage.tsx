@@ -82,6 +82,7 @@ export function PlanPage() {
           wholemealPct: recipe.wholemealPct ?? 0,
           ryePct: recipe.ryePct ?? 0,
         },
+        loaves: recipe.loaves ?? 1,
       }),
     [
       plan,
@@ -93,6 +94,7 @@ export function PlanPage() {
       recipe.levainPct,
       recipe.wholemealPct,
       recipe.ryePct,
+      recipe.loaves,
     ],
   )
 

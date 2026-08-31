@@ -32,6 +32,8 @@ export interface RecipeInput {
   wholemealPct?: number
   /** Percentage of total flour that is rye. Optional; defaults to none. */
   ryePct?: number
+  /** How many loaves the batch is divided into. */
+  loaves?: number
 }
 
 export interface RecipeLine {
@@ -58,6 +60,7 @@ export const DEFAULT_RECIPE: RecipeInput = {
   levainPct: 20,
   wholemealPct: 0,
   ryePct: 0,
+  loaves: 1,
 }
 
 /**
@@ -142,6 +145,40 @@ export function computeRecipe(
     actualHydrationPct: (totalWater / totalFlour) * 100,
     warnings,
   }
+}
+
+/**
+ * Total dough weight for a given flour weight.
+ *
+ * The levain cancels out of this: it is made of flour and water that are
+ * already counted in the totals, so dough is just flour plus its water plus
+ * its salt. That exactness is what makes the inverse below reliable.
+ */
+export function doughWeight(
+  totalFlour: number,
+  hydrationPct: number,
+  saltPct: number,
+): number {
+  return totalFlour * (1 + hydrationPct / 100 + saltPct / 100)
+}
+
+/**
+ * The inverse: flour needed to end up with a target weight of dough. Lets the
+ * baker size a batch the way they actually think about it — "six loaves of
+ * 900 g" — instead of reverse-engineering a flour weight to hit it.
+ *
+ * Rounded to the nearest 5 g. Coarser rounding looks tidier on the flour
+ * slider but pushes the error onto the loaf weight, and with a single loaf
+ * carrying all of it, rounding to 25 g put a "900 g loaf" out by 15 g.
+ */
+export function flourForDough(
+  targetDough: number,
+  hydrationPct: number,
+  saltPct: number,
+): number {
+  const divisor = 1 + hydrationPct / 100 + saltPct / 100
+  if (divisor <= 0) return 0
+  return Math.max(5, Math.round(targetDough / divisor / 5) * 5)
 }
 
 /**

@@ -168,6 +168,8 @@ export interface ScheduleRequest {
   levainPct?: number
   /** Flour blend from the recipe. Defaults to all white. */
   blend?: FlourBlend
+  /** Loaves the batch is divided into. Shaping six takes longer than one. */
+  loaves?: number
 }
 
 export function buildSchedule({
@@ -179,7 +181,12 @@ export function buildSchedule({
   adjustments = {},
   levainPct = REFERENCE_LEVAIN_PCT,
   blend = DEFAULT_BLEND,
+  loaves = 1,
 }: ScheduleRequest): Schedule {
+  // Handling scales with the number of pieces; the dough does not care, but
+  // your hands do. Six loaves is closer to half an hour of shaping than ten
+  // minutes, and a plan that ignores that sends you into the fridge late.
+  const extraPieces = Math.max(0, Math.round(loaves) - 1)
   const factor = fermentFactor(tempC)
   const inoculationShift = inoculationShiftMin(levainPct)
   const flourFactor = flourTimeFactor(blend)
@@ -231,7 +238,7 @@ export function buildSchedule({
       title: 'Pre-shape',
       detail:
         'Turn the dough onto a lightly floured bench and, with minimal handling, pull it into a loose round with some surface tension. This organises the dough so the final shape is tidier.',
-      durationMin: 10,
+      durationMin: 10 + extraPieces * 4,
       timer: false,
       scales: false,
     },
@@ -249,7 +256,7 @@ export function buildSchedule({
       title: 'Final shape',
       detail:
         'Shape into a boule or bâtard with a taut skin, then place seam-side up in a floured banneton or a bowl lined with a tea towel. Cover.',
-      durationMin: 10,
+      durationMin: 10 + extraPieces * 5,
       timer: false,
       scales: false,
     },
