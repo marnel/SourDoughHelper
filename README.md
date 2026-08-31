@@ -23,7 +23,34 @@ secure context — that means `localhost` or real HTTPS, not a bare LAN IP.
 ```bash
 npm run build     # typecheck + production build into dist/
 npm run preview   # serve dist/ locally
+npm test          # run the suite once
+npm run test:watch
+npm run check     # typecheck + tests, what to run before pushing
 ```
+
+## Tests
+
+119 tests over the logic in `src/lib`, run with Vitest. There are no component
+tests: the pages are thin, and everything that can be quietly wrong — the
+schedule engine, baker's percentages, temperature scaling, the timer store — is
+a pure function that can be tested directly.
+
+They are written against behaviour rather than implementation, and several are
+explicit regression tests for bugs found by hand, each carrying a comment
+saying what broke. That set was verified by reintroducing each bug and checking
+the suite went red:
+
+| Reintroduced bug | Tests that fail |
+| --- | --- |
+| Same-day bake loses its final proof | 3 |
+| Timer labels read "— done" while running | 2 |
+| Preheat appended instead of overlapping | 3 |
+| Mid-bake adjustments ignored | 7 |
+| Re-arming wipes manual timers | 2 |
+| Temperature scaling applied to the oven | 1 |
+
+A test that cannot fail is worth nothing, so it is worth re-running that check
+when adding tests to this suite.
 
 ## Deploying
 

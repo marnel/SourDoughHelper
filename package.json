@@ -3,12 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Sourdough Helper — starter feeding ratios, bake schedules, and timers as an installable PWA",
+  "description": "Sourdough Helper \u2014 starter feeding ratios, bake schedules, and timers as an installable PWA",
   "scripts": {
     "dev": "vite --host",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host",
-    "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "tsc -b && vitest run",
     "icons": "node scripts/gen-icons.mjs"
   },
   "dependencies": {
@@ -20,8 +22,10 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.4",
+    "happy-dom": "^20.11.13",
     "typescript": "^5.9.3",
     "vite": "^7.1.9",
-    "vite-plugin-pwa": "^1.0.3"
+    "vite-plugin-pwa": "^1.0.3",
+    "vitest": "^4.1.11"
   }
 }
