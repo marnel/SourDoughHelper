@@ -30,7 +30,7 @@ npm run check     # typecheck + tests, what to run before pushing
 
 ## Tests
 
-172 tests over the logic in `src/lib`, run with Vitest. There are no component
+178 tests over the logic in `src/lib`, run with Vitest. There are no component
 tests: the pages are thin, and everything that can be quietly wrong — the
 schedule engine, baker's percentages, temperature scaling, the timer store — is
 a pure function that can be tested directly.
@@ -177,6 +177,12 @@ oven. Hydration is deliberately not modelled: wetter dough does ferment
 slightly faster, but the effect is small next to temperature and inoculation,
 and a coefficient invented for it would add false precision rather than
 accuracy.
+
+**A house formula is separate from the current recipe.** The recipe already
+persists, so saved defaults exist for the other direction: getting back to your
+usual hydration, salt and levain after an experiment without having to remember
+what they were. Batch size is deliberately excluded — flour weight and loaf
+count change from bake to bake, a formula does not.
 
 **Batch size is three views of one number.** Total flour is the source of
 truth; loaf count and weight-per-loaf work back to it, so the three controls

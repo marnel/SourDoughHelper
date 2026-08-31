@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Card, Details, Slider, Stepper } from '../components/Controls'
 import { usePrefs, useStore } from '../hooks'
 import { fmtDuration } from '../lib/format'
@@ -31,7 +31,8 @@ import { buildSchedule, planStore } from '../lib/schedule'
 
 export function MethodPage() {
   const r = useStore(recipeStore)
-  const { tempUnit, ratioId, tempC } = usePrefs()
+  const prefs = usePrefs()
+  const { tempUnit, ratioId, tempC } = prefs
   // Read-only: the method text and its durations come from the saved plan, so
   // this page always agrees with the Plan tab.
   const plan = useStore(planStore)
@@ -58,6 +59,28 @@ export function MethodPage() {
       }).steps,
     [plan, ratioId, tempC, r.levainPct, r.wholemealPct, r.ryePct],
   )
+
+  const d = prefs.recipeDefaults
+  const onDefaults =
+    r.hydrationPct === d.hydrationPct &&
+    r.saltPct === d.saltPct &&
+    r.levainPct === d.levainPct
+
+  const [savedDefaults, setSavedDefaults] = useState(false)
+
+  const saveDefaults = () => {
+    setPrefs({
+      recipeDefaults: {
+        hydrationPct: r.hydrationPct,
+        saltPct: r.saltPct,
+        levainPct: r.levainPct,
+      },
+    })
+    setSavedDefaults(true)
+    window.setTimeout(() => setSavedDefaults(false), 2000)
+  }
+
+  const applyDefaults = () => patch({ ...d })
 
   const loaves = Math.max(1, r.loaves ?? 1)
   const perLoafGrams = doughWeight(r.totalFlour, r.hydrationPct, r.saltPct) / loaves
@@ -227,6 +250,33 @@ export function MethodPage() {
           planner already accounts for this percentage. Showing it makes the
           connection between the two tabs visible.
         */}
+        <div className="defaults-row">
+          <div className="defaults-current">
+            <span className="summary-label">Your usual formula</span>
+            <strong>
+              {d.hydrationPct}% water · {d.saltPct.toFixed(1)}% salt ·{' '}
+              {d.levainPct}% levain
+            </strong>
+          </div>
+          <div className="defaults-actions">
+            <button type="button" onClick={saveDefaults} disabled={onDefaults}>
+              {savedDefaults ? '✓ Saved' : 'Save these'}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={applyDefaults}
+              disabled={onDefaults}
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+        <p className="hint">
+          Hydration, salt and levain only — flour weight and loaf count change
+          from bake to bake.
+        </p>
+
         <p className="advice">
           At {r.levainPct}% the bulk works out to{' '}
           <strong>{fmtDuration(bulkMinutes)}</strong> in a{' '}

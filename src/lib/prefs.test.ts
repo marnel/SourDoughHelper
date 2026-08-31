@@ -118,6 +118,79 @@ describe('migration off the old per-page storage', () => {
   })
 })
 
+describe('house formula defaults', () => {
+  it('starts at the app’s own recipe defaults', async () => {
+    const { getPrefs } = await loadPrefs()
+    expect(getPrefs().recipeDefaults).toEqual({
+      hydrationPct: 75,
+      saltPct: 2,
+      levainPct: 20,
+    })
+  })
+
+  it('keeps a saved formula', async () => {
+    const { getPrefs } = await loadPrefs({
+      prefs: {
+        recipeDefaults: { hydrationPct: 78, saltPct: 2.2, levainPct: 15 },
+      },
+    })
+    expect(getPrefs().recipeDefaults).toEqual({
+      hydrationPct: 78,
+      saltPct: 2.2,
+      levainPct: 15,
+    })
+  })
+
+  /*
+   * `load` merges shallowly, so a stored object carrying only one field would
+   * otherwise wipe the other two rather than leaving them at their defaults.
+   */
+  it('fills in fields missing from a partial stored object', async () => {
+    const { getPrefs } = await loadPrefs({
+      prefs: { recipeDefaults: { hydrationPct: 82 } },
+    })
+    expect(getPrefs().recipeDefaults).toEqual({
+      hydrationPct: 82,
+      saltPct: 2,
+      levainPct: 20,
+    })
+  })
+
+  it('clamps each field to its slider’s range', async () => {
+    const { getPrefs } = await loadPrefs({
+      prefs: {
+        recipeDefaults: { hydrationPct: 500, saltPct: -4, levainPct: 900 },
+      },
+    })
+    expect(getPrefs().recipeDefaults).toEqual({
+      hydrationPct: 95,
+      saltPct: 1,
+      levainPct: 40,
+    })
+  })
+
+  it('falls back on nonsense', async () => {
+    for (const recipeDefaults of [null, 'nope', { hydrationPct: 'wet' }]) {
+      const { getPrefs } = await loadPrefs({ prefs: { recipeDefaults } })
+      expect(getPrefs().recipeDefaults.hydrationPct).toBe(75)
+    }
+  })
+
+  it('persists a saved formula across a reload', async () => {
+    const { setPrefs } = await loadPrefs()
+    setPrefs({
+      recipeDefaults: { hydrationPct: 80, saltPct: 2.5, levainPct: 12 },
+    })
+    vi.resetModules()
+    const { getPrefs } = await import('./prefs')
+    expect(getPrefs().recipeDefaults).toEqual({
+      hydrationPct: 80,
+      saltPct: 2.5,
+      levainPct: 12,
+    })
+  })
+})
+
 describe('setPrefs', () => {
   it('merges a partial update and notifies subscribers', async () => {
     const { getPrefs, setPrefs, subscribe } = await loadPrefs()

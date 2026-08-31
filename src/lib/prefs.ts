@@ -8,6 +8,7 @@
  */
 
 import { DEFAULT_RATIO_ID, RATIOS } from './ratios'
+import { DEFAULT_RECIPE } from './recipe'
 import { KEYS, load, save } from './storage'
 import { REFERENCE_C, type TempUnit } from './temperature'
 import {
@@ -43,6 +44,21 @@ export interface Prefs {
    * levain. One number, even if imperfect, beats two that contradict.
    */
   tempC: number
+  /**
+   * The baker's house formula. The recipe itself already persists, so these
+   * exist for the other direction: getting back to your usual numbers after
+   * an experiment, without having to remember what they were.
+   *
+   * Batch size is deliberately not included — flour weight and loaf count
+   * change from bake to bake, while a formula does not.
+   */
+  recipeDefaults: RecipeDefaults
+}
+
+export interface RecipeDefaults {
+  hydrationPct: number
+  saltPct: number
+  levainPct: number
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -52,6 +68,11 @@ export const DEFAULT_PREFS: Prefs = {
   tempUnit: 'F',
   ratioId: DEFAULT_RATIO_ID,
   tempC: REFERENCE_C,
+  recipeDefaults: {
+    hydrationPct: DEFAULT_RECIPE.hydrationPct,
+    saltPct: DEFAULT_RECIPE.saltPct,
+    levainPct: DEFAULT_RECIPE.levainPct,
+  },
 }
 
 function sanitise(p: Prefs): Prefs {
@@ -68,6 +89,25 @@ function sanitise(p: Prefs): Prefs {
       Number.isFinite(p.tempC) && p.tempC >= 10 && p.tempC <= 40
         ? p.tempC
         : DEFAULT_PREFS.tempC,
+    recipeDefaults: sanitiseDefaults(p.recipeDefaults),
+  }
+}
+
+/**
+ * `load` merges shallowly, so a stored object with only one of the three
+ * fields would otherwise replace the whole default. Each field is filled and
+ * clamped to its slider's range individually.
+ */
+function sanitiseDefaults(d: Partial<RecipeDefaults> | undefined): RecipeDefaults {
+  const base = DEFAULT_PREFS.recipeDefaults
+  const clamp = (v: unknown, min: number, max: number, fallback: number) =>
+    typeof v === 'number' && Number.isFinite(v)
+      ? Math.min(max, Math.max(min, v))
+      : fallback
+  return {
+    hydrationPct: clamp(d?.hydrationPct, 55, 95, base.hydrationPct),
+    saltPct: clamp(d?.saltPct, 1, 3, base.saltPct),
+    levainPct: clamp(d?.levainPct, 5, 40, base.levainPct),
   }
 }
 

@@ -1345,6 +1345,44 @@ button:disabled {
   gap: 9px;
 }
 
+/* --- House formula ------------------------------------------------------ */
+
+.defaults-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 13px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.defaults-current {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.defaults-current strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.defaults-actions {
+  display: flex;
+  gap: 7px;
+  flex: none;
+}
+
+.defaults-actions button {
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  min-height: 38px;
+}
+
 /* --- Bake in progress --------------------------------------------------- */
 
 .now-step {
