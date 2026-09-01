@@ -505,6 +505,16 @@ input[type='range'] {
   height: 30px;
   margin: 0;
   background: none;
+  /*
+   * Hand vertical gestures back to the browser.
+   *
+   * A range input claims the pointer the moment you touch it, on both axes, so
+   * a scroll that happens to start on a slider drags the thumb instead of
+   * moving the page — and on a form this dense that is most of the screen.
+   * `pan-y` splits it: up and down scrolls the page, left and right adjusts the
+   * value. Which is what everyone already expects it to do.
+   */
+  touch-action: pan-y;
 }
 
 input[type='range']::-webkit-slider-runnable-track {
